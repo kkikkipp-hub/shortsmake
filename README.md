@@ -6,10 +6,13 @@
 
 - 🎬 YouTube, Vimeo 등 yt-dlp 지원 URL 다운로드
 - ✂️ AI 기반 자동 구간 분석 및 선택
-- 💬 Whisper 기반 자막 자동 생성 및 편집
-- ✨ 줌인/패닝 등 효과 설정
+- 💬 Whisper 기반 자막 자동 생성 및 편집 (Bold/Italic/Shadow/자간 스타일)
+- ✨ 줌인/패닝 등 효과 설정, 커스텀 폰트 업로드 지원
 - 🎤 Azure Edge TTS 음성 합성
 - 📱 9:16 숏폼 영상 렌더링 및 다운로드
+- 🛍️ **제품 쇼츠 모드**: GPT-4o Vision으로 하이라이트 구간 + 자막 자동 생성 (OPENAI_API_KEY 필요)
+- 🧹 번인 자막 제거: EasyOCR 감지 → FFmpeg delogo(fast) / OpenCV inpainting(quality)
+- 📂 Job 대시보드: 이전 작업 목록, ZIP 다운로드, 삭제
 
 ## 기술 스택
 
@@ -41,7 +44,7 @@ npm run dev
 
 ## 버전
 
-현재 버전: `0.1.1.0` — 자세한 변경 이력은 [CHANGELOG.md](CHANGELOG.md) 참조.
+현재 버전: `0.1.12.0` — 자세한 변경 이력은 [CHANGELOG.md](CHANGELOG.md) 참조.
 
 ## 문서
 
