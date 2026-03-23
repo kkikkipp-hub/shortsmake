@@ -92,10 +92,25 @@ const DEFAULT_STYLE = {
   outline_width: 3, position: 'bottom' as const, bg_opacity: 0.6,
 }
 
+function secToInput(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = (sec % 60).toFixed(1)
+  return `${m}:${s.padStart(4, '0')}`
+}
+function inputToSec(val: string): number {
+  const parts = val.split(':')
+  if (parts.length === 2) return parseFloat(parts[0]) * 60 + parseFloat(parts[1])
+  return parseFloat(val) || 0
+}
+
+const CROP_LAYOUT_EFFECTS = ['closeup_fill', 'split_top_bottom', 'split_left_right']
+
 export default function EffectsStep() {
-  const { jobId, selectedSegments, effects, setEffects, setStep, setError } = useProjectStore()
+  const { jobId, segments, selectedSegments, effects, setEffects, setStep, setError } = useProjectStore()
   const [activeSegId, setActiveSegId] = useState(selectedSegments[0] || '')
   const api = useApi()
+
+  const activeSeg = segments.find(s => s.id === activeSegId)
 
   const config: EffectsConfig = effects[activeSegId] || {
     segment_id: activeSegId,
@@ -116,6 +131,25 @@ export default function EffectsStep() {
 
   function applyPreset(preset: typeof EFFECT_PRESETS[0]) {
     updateConfig({ effects: preset.effects })
+  }
+
+  function copyToAll() {
+    const { segment_id: _, trim_start: _ts, trim_end: _te, ...shared } = config
+    for (const sid of selectedSegments) {
+      if (sid === activeSegId) continue
+      const existing = effects[sid] || { segment_id: sid }
+      setEffects(sid, { ...existing, ...shared, segment_id: sid })
+    }
+  }
+
+  // 크롭 위치 조절이 필요한 레이아웃 효과
+  const layoutEffect = config.effects.find(e => CROP_LAYOUT_EFFECTS.includes(e.type))
+  function updateCrop(crop_x: number, crop_y: number) {
+    updateConfig({
+      effects: config.effects.map(e =>
+        CROP_LAYOUT_EFFECTS.includes(e.type) ? { ...e, crop_x, crop_y } : e
+      ),
+    })
   }
 
   async function saveAndRender() {
@@ -145,7 +179,22 @@ export default function EffectsStep() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 20 }}>✨ 영상 효과 설정</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>✨ 영상 효과 설정</h2>
+        {selectedSegments.length > 1 && (
+          <button
+            onClick={copyToAll}
+            title="현재 구간의 모든 설정을 나머지 구간에 복사"
+            style={{
+              background: '#fff7ed', border: '1px solid #fed7aa',
+              color: '#c2410c', borderRadius: 8,
+              padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            📋 모든 구간에 복사
+          </button>
+        )}
+      </div>
 
       {/* 구간 탭 */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -228,6 +277,69 @@ export default function EffectsStep() {
           })}
         </div>
       </div>
+
+      {/* 크롭 위치 (클로즈업/분할 효과 선택 시만 표시) */}
+      {layoutEffect && (
+        <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 16 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>🎯 크롭 중심 위치</h3>
+          <div style={{ fontSize: 11, color: '#8b95a1', marginBottom: 12 }}>
+            클로즈업/분할 효과의 화면 중심을 조정합니다. 격자를 클릭하거나 슬라이더로 세밀하게 조정하세요.
+          </div>
+          {/* 3×3 그리드 피커 */}
+          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4, width: 132 }}>
+                {[0.15, 0.5, 0.85].map(cy =>
+                  [0.15, 0.5, 0.85].map(cx => {
+                    const active = Math.abs((layoutEffect.crop_x ?? 0.5) - cx) < 0.15
+                      && Math.abs((layoutEffect.crop_y ?? 0.5) - cy) < 0.15
+                    return (
+                      <button
+                        key={`${cx},${cy}`}
+                        onClick={() => updateCrop(cx, cy)}
+                        style={{
+                          width: 40, height: 40, borderRadius: 8,
+                          border: active ? '2px solid #3182f6' : '1px solid #e5e8eb',
+                          background: active ? '#ebf3ff' : '#f8f9fa',
+                          cursor: 'pointer', fontSize: 14,
+                        }}
+                      >
+                        {cy < 0.3 ? (cx < 0.3 ? '↖' : cx > 0.7 ? '↗' : '⬆') :
+                         cy > 0.7 ? (cx < 0.3 ? '↙' : cx > 0.7 ? '↘' : '⬇') :
+                          (cx < 0.3 ? '◀' : cx > 0.7 ? '▶' : '⊙')}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#4e5968' }}>가로 위치</span>
+                  <span style={{ fontSize: 11, color: '#8b95a1' }}>{((layoutEffect.crop_x ?? 0.5) * 100).toFixed(0)}%</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.01"
+                  value={layoutEffect.crop_x ?? 0.5}
+                  onChange={e => updateCrop(+e.target.value, layoutEffect.crop_y ?? 0.5)}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#4e5968' }}>세로 위치</span>
+                  <span style={{ fontSize: 11, color: '#8b95a1' }}>{((layoutEffect.crop_y ?? 0.5) * 100).toFixed(0)}%</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.01"
+                  value={layoutEffect.crop_y ?? 0.5}
+                  onChange={e => updateCrop(layoutEffect.crop_x ?? 0.5, +e.target.value)}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 색상 필터 */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 16 }}>
@@ -441,6 +553,66 @@ export default function EffectsStep() {
           </div>
         </div>
       </div>
+
+      {/* 구간 트리밍 */}
+      {activeSeg && (
+        <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>✂️ 구간 트리밍</h3>
+            {(config.trim_start !== undefined || config.trim_end !== undefined) && (
+              <button
+                onClick={() => updateConfig({ trim_start: undefined, trim_end: undefined })}
+                style={{
+                  background: 'none', border: '1px solid #e5e8eb', borderRadius: 6,
+                  padding: '3px 8px', fontSize: 11, color: '#8b95a1', cursor: 'pointer',
+                }}
+              >AI 분석값으로 초기화</button>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: '#8b95a1', marginBottom: 12 }}>
+            AI가 추천한 구간: {secToInput(activeSeg.start_sec)} ~ {secToInput(activeSeg.end_sec)}
+            &nbsp;({activeSeg.duration.toFixed(1)}초)
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 4 }}>시작 (분:초)</label>
+              <input
+                type="text"
+                defaultValue={secToInput(config.trim_start ?? activeSeg.start_sec)}
+                onBlur={e => {
+                  const v = inputToSec(e.target.value)
+                  if (!isNaN(v)) updateConfig({ trim_start: v })
+                }}
+                placeholder={secToInput(activeSeg.start_sec)}
+                style={{ width: '100%', border: '1px solid #e5e8eb', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 4 }}>끝 (분:초)</label>
+              <input
+                type="text"
+                defaultValue={secToInput(config.trim_end ?? activeSeg.end_sec)}
+                onBlur={e => {
+                  const v = inputToSec(e.target.value)
+                  if (!isNaN(v)) updateConfig({ trim_end: v })
+                }}
+                placeholder={secToInput(activeSeg.end_sec)}
+                style={{ width: '100%', border: '1px solid #e5e8eb', borderRadius: 8, padding: '8px 10px', fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 4 }}>길이</label>
+              <div style={{
+                height: 36, display: 'flex', alignItems: 'center',
+                fontSize: 13, fontWeight: 700, color: '#3182f6',
+                background: '#ebf3ff', borderRadius: 8, padding: '0 10px',
+              }}>
+                {((config.trim_end ?? activeSeg.end_sec) - (config.trim_start ?? activeSeg.start_sec)).toFixed(1)}초
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 워터마크 */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 20 }}>

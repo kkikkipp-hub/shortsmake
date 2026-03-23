@@ -42,6 +42,8 @@ export interface EffectsConfig {
   speed: number          // 영상 속도 (0.5~2.0, 기본 1.0)
   watermark: string      // 워터마크 텍스트 (빈 문자열이면 미적용)
   watermark_position: string  // top_left|top_right|bottom_left|bottom_right
+  trim_start?: number    // 구간 시작 오버라이드 (미설정이면 AI 분석값)
+  trim_end?: number      // 구간 끝 오버라이드 (미설정이면 AI 분석값)
 }
 
 export interface Effect {
