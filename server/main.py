@@ -479,6 +479,28 @@ async def download_outputs_zip(job_id: str):
     )
 
 
+@app.post("/api/jobs/{job_id}/segments/{segment_id}/preview")
+async def generate_preview(job_id: str, segment_id: str, config: EffectsConfig):
+    """빠른 미리보기 렌더링 (저해상도, 최대 10초, 자막·TTS·BGM 제외)"""
+    from services.effects_engine import render_preview
+    _get_job(job_id)
+    try:
+        preview_path = await render_preview(job_id, segment_id, config)
+        return {"url": f"/api/jobs/{job_id}/preview/{preview_path.name}"}
+    except Exception as e:
+        raise HTTPException(500, f"미리보기 생성 실패: {e}")
+
+
+@app.get("/api/jobs/{job_id}/preview/{filename}")
+async def get_preview_file(job_id: str, filename: str):
+    """미리보기 영상 파일 제공"""
+    path = WORKSPACE_DIR / job_id / "preview" / filename
+    if not path.exists():
+        raise HTTPException(404, "미리보기 파일 없음")
+    return FileResponse(path, media_type="video/mp4",
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.post("/api/jobs/{job_id}/bgm")
 async def upload_bgm(job_id: str, file: UploadFile = File(...)):
     """BGM 파일 업로드 (MP3/AAC/WAV)"""

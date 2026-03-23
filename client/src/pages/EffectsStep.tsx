@@ -152,6 +152,23 @@ export default function EffectsStep() {
     })
   }
 
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
+  async function generatePreview() {
+    if (!jobId) return
+    setPreviewLoading(true)
+    setPreviewUrl(null)
+    try {
+      const res = await api.generatePreview(jobId, activeSegId, config)
+      setPreviewUrl(res.url)
+    } catch (e: any) {
+      setError('미리보기 생성 실패: ' + (e.response?.data?.detail || e.message))
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
   async function saveAndRender() {
     if (!jobId) {
       setError('작업 ID가 없습니다. 처음부터 다시 시작해주세요.')
@@ -650,6 +667,36 @@ export default function EffectsStep() {
               ))}
             </div>
           </div>
+        )}
+      </div>
+
+      {/* 빠른 미리보기 */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: previewUrl ? 14 : 0 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#191f28' }}>🎬 빠른 미리보기</div>
+            <div style={{ fontSize: 11, color: '#8b95a1', marginTop: 2 }}>480p · 최대 10초 · 자막/TTS/BGM 제외</div>
+          </div>
+          <button
+            onClick={generatePreview}
+            disabled={previewLoading}
+            style={{
+              background: previewLoading ? '#c9d0d7' : '#22c55e',
+              color: '#fff', border: 'none', borderRadius: 8,
+              padding: '8px 16px', fontSize: 13, fontWeight: 700,
+              cursor: previewLoading ? 'not-allowed' : 'pointer', flexShrink: 0,
+            }}
+          >
+            {previewLoading ? '생성 중...' : '▶ 미리보기 생성'}
+          </button>
+        </div>
+        {previewUrl && (
+          <video
+            src={previewUrl}
+            controls
+            autoPlay
+            style={{ width: '100%', maxHeight: 400, borderRadius: 10, background: '#000', display: 'block' }}
+          />
         )}
       </div>
 

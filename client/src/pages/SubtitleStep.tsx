@@ -137,6 +137,20 @@ export default function SubtitleStep() {
     ])
   }
 
+  const [offsetInput, setOffsetInput] = useState('')
+
+  function applyOffset() {
+    if (!activeSegId) return
+    const delta = parseFloat(offsetInput)
+    if (isNaN(delta) || delta === 0) return
+    setSubtitles(activeSegId, activeSubs.map(s => ({
+      ...s,
+      start: Math.max(0, s.start + delta),
+      end: Math.max(0, s.end + delta),
+    })))
+    setOffsetInput('')
+  }
+
   async function saveAndNext() {
     if (!jobId) return
     // 모든 구간 자막 저장
@@ -267,6 +281,43 @@ export default function SubtitleStep() {
               background: '#f0f7ff', border: '1px solid #93c5fd', borderRadius: 8,
               padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#2563eb', cursor: 'pointer',
             }} title="18자 초과 자막을 어절 단위로 분할">↩ 자동 줄바꿈</button>
+          </div>
+
+          {/* 타임 오프셋 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4e5968', flexShrink: 0 }}>⏱ 전체 타이밍 이동</span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[-1, -0.5, -0.2, 0.2, 0.5, 1].map(v => (
+                <button key={v}
+                  onClick={() => {
+                    if (!activeSegId) return
+                    setSubtitles(activeSegId, activeSubs.map(s => ({
+                      ...s,
+                      start: Math.max(0, s.start + v),
+                      end: Math.max(0, s.end + v),
+                    })))
+                  }}
+                  style={{
+                    padding: '5px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                    border: '1px solid #e5e8eb', background: v < 0 ? '#fff0f0' : '#f0fff4',
+                    color: v < 0 ? '#dc2626' : '#16a34a', cursor: 'pointer',
+                  }}
+                >
+                  {v > 0 ? '+' : ''}{v}s
+                </button>
+              ))}
+            </div>
+            <input
+              type="number" step="0.1" placeholder="직접 입력(초)"
+              value={offsetInput}
+              onChange={e => setOffsetInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && applyOffset()}
+              style={{ width: 110, border: '1px solid #e5e8eb', borderRadius: 7, padding: '5px 8px', fontSize: 12 }}
+            />
+            <button onClick={applyOffset} style={{
+              background: '#6366f1', color: '#fff', border: 'none', borderRadius: 7,
+              padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>적용</button>
           </div>
 
           {/* GPT 자막 리라이팅 */}
