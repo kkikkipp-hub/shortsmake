@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
 
-# FFmpeg PATH 보장
-os.environ["PATH"] = "/home/comnict/.local/bin:" + os.environ.get("PATH", "")
+# FFmpeg + venv 실행파일 PATH 보장
+_VENV_BIN = str(Path(__file__).parent / ".venv" / "bin")
+os.environ["PATH"] = _VENV_BIN + ":/home/comnict/.local/bin:" + os.environ.get("PATH", "")
 
 BASE_DIR = Path(__file__).parent
 WORKSPACE_DIR = BASE_DIR / "workspace"
