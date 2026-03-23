@@ -53,8 +53,16 @@ async def synthesize_segment_tts(
         if not text:
             continue
         chunk_path = tts_dir / f"{segment_id}_chunk_{i:03d}.mp3"
-        communicate = edge_tts.Communicate(text, voice, rate=rate_str)
-        await communicate.save(str(chunk_path))
+        # 연결 타임아웃 대비 최대 3회 재시도
+        for attempt in range(3):
+            try:
+                communicate = edge_tts.Communicate(text, voice, rate=rate_str)
+                await asyncio.wait_for(communicate.save(str(chunk_path)), timeout=30)
+                break
+            except Exception as e:
+                if attempt == 2:
+                    raise RuntimeError(f"TTS 합성 실패 ({text[:20]}...): {e}") from e
+                await asyncio.sleep(2 ** attempt)  # 1초, 2초 대기 후 재시도
         chunk_files.append((sub["start"], str(chunk_path)))
 
         pct = ((i + 1) / total) * 80
