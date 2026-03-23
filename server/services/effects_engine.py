@@ -587,6 +587,86 @@ async def _copy_file(src: Path, dst: Path):
     await proc.wait()
 
 
+async def render_preview(job_id: str, segment_id: str,
+                         effects_config: EffectsConfig) -> Path:
+    """저해상도 빠른 미리보기 렌더링 (자막·TTS·BGM·워터마크 제외, 최대 10초)"""
+    job_dir = WORKSPACE_DIR / job_id
+    seg_dir = job_dir / "segments"
+    preview_dir = job_dir / "preview"
+    preview_dir.mkdir(exist_ok=True)
+
+    source = _find_source(job_dir)
+    segments_data = json.loads((job_dir / "segments.json").read_text())
+    seg = next((s for s in segments_data if s["id"] == segment_id), None)
+    if not seg:
+        raise ValueError(f"구간 없음: {segment_id}")
+
+    ratio = effects_config.aspect_ratio or "9:16"
+    w, h = ASPECT_RATIOS.get(ratio, ASPECT_RATIOS["9:16"])
+
+    # trim 오버라이드
+    cut_start = effects_config.trim_start if effects_config.trim_start is not None else seg["start_sec"]
+    cut_end   = effects_config.trim_end   if effects_config.trim_end   is not None else seg["end_sec"]
+    cut_start = max(0.0, min(cut_start, cut_end - 0.5))
+    cut_end   = max(cut_start + 0.5, cut_end)
+    # 미리보기는 최대 10초
+    cut_end = min(cut_end, cut_start + 10.0)
+
+    # 1) 구간 잘라내기
+    cut_path = preview_dir / f"{segment_id}_pv_cut.mp4"
+    await _cut_segment(source, cut_start, cut_end, cut_path)
+
+    current = cut_path
+
+    # 1.5) 속도
+    speed = getattr(effects_config, "speed", 1.0) or 1.0
+    if abs(speed - 1.0) > 0.01:
+        sp_path = preview_dir / f"{segment_id}_pv_speed.mp4"
+        await _apply_speed(current, sp_path, speed)
+        current = sp_path
+
+    # 2) 화면 비율 변환
+    has_layout = any(
+        e.type.value in ("closeup_fill", "split_top_bottom", "split_left_right")
+        for e in effects_config.effects
+    )
+    if ratio != "16:9" and not has_layout:
+        conv_path = preview_dir / f"{segment_id}_pv_ratio.mp4"
+        await _convert_aspect(current, conv_path, w, h)
+        current = conv_path
+
+    # 3) 영상 효과
+    if effects_config.effects:
+        fx_path = preview_dir / f"{segment_id}_pv_fx.mp4"
+        await _apply_effects(current, fx_path, effects_config, w, h)
+        current = fx_path
+
+    # 3.5) 색상 필터
+    color_filter = COLOR_FILTERS.get(effects_config.color_preset or "none", "")
+    if color_filter:
+        color_path = preview_dir / f"{segment_id}_pv_color.mp4"
+        await _apply_color_filter(current, color_path, color_filter)
+        current = color_path
+
+    # 최종 480p 다운스케일 (미리보기용 용량 절감)
+    preview_path = preview_dir / f"{segment_id}_preview.mp4"
+    scale_filter = "scale=480:-2" if w >= h else "scale=-2:480"
+    cmd = [
+        "ffmpeg", "-y", "-i", str(current),
+        "-vf", scale_filter,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+        "-c:a", "aac", "-b:a", "96k",
+        "-movflags", "+faststart",
+        str(preview_path),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+    )
+    await proc.wait()
+
+    return preview_path
+
+
 def _find_source(job_dir: Path) -> Path:
     for ext in ["mp4", "mkv", "webm", "avi"]:
         p = job_dir / f"source.{ext}"
