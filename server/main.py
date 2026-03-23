@@ -4,12 +4,12 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import WORKSPACE_DIR
+from config import WORKSPACE_DIR, API_KEY
 from models.schemas import (
     DownloadRequest, AnalyzeRequest, SegmentSelectRequest,
     SubtitleData, TTSRequest, EffectsConfig, RenderRequest,
@@ -21,10 +21,23 @@ app = FastAPI(title="ShortsMake API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://localhost:4173"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-API-Key"],
 )
+
+
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    """API 키 인증 미들웨어 (SHORTSMAKE_API_KEY 환경변수 설정 시 활성)"""
+    if API_KEY and request.url.path.startswith("/api/"):
+        key = (
+            request.headers.get("X-API-Key")
+            or request.query_params.get("api_key")
+        )
+        if key != API_KEY:
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    return await call_next(request)
 
 # ── 작업(Job) 상태 관리 (인메모리) ─────────────────────────────────────
 jobs: dict[str, dict] = {}

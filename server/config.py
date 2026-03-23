@@ -31,3 +31,7 @@ FONTS_DIR = BASE_DIR / "fonts"
 from dotenv import load_dotenv
 load_dotenv(BASE_DIR / ".env")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+
+# API 인증 키 (설정 시 모든 /api/* 요청에 X-API-Key 헤더 필요)
+# 비어있으면 로컬 개발 모드 (인증 비활성)
+API_KEY = os.environ.get("SHORTSMAKE_API_KEY", "")
