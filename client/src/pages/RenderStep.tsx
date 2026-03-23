@@ -62,12 +62,22 @@ export default function RenderStep() {
         const sid = selectedSegments[i]
         setTtsProgress(`구간 ${i + 1}/${selectedSegments.length} TTS 합성 중...`)
         await api.synthesizeTts(jobId, sid, voice, speed)
-        // 완료 대기
-        await new Promise(r => setTimeout(r, 3000))
+        // WS progress 메시지로 완료/실패 대기 (최대 120초)
+        let done = false
+        let ttsError: string | null = null
+        for (let t = 0; t < 120; t++) {
+          await new Promise(r => setTimeout(r, 1000))
+          const prog = useProjectStore.getState().progress
+          if (prog?.step === 'tts' && prog.progress >= 100) { done = true; break }
+          if (prog?.step === 'tts' && prog.progress < 0) { ttsError = prog.message; break }
+        }
+        if (ttsError) throw new Error(ttsError)
+        if (!done) throw new Error('TTS 합성 타임아웃 (120초)')
       }
       setTtsProgress('TTS 합성 완료!')
       setLocalStep('render')
     } catch (e: any) {
+      setTtsProgress('')
       setError(e.message)
     }
   }
@@ -111,9 +121,12 @@ export default function RenderStep() {
       }).catch(() => {})
       renderingRef.current = false
       setRendering(false)
-    } else if (progress.step === 'error') {
+    } else if (
+      (progress.step === 'render' && progress.progress < 0) ||
+      progress.step === 'error'
+    ) {
       setRenderLog(prev => [...prev, `[${ts}] ❌ ${progress.message}`])
-      setError(progress.message)
+      setError(progress.message || '렌더링 중 오류가 발생했습니다.')
       renderingRef.current = false
       setRendering(false)
     }
