@@ -2,6 +2,22 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.7.0] - 2026-03-23
+
+### Added
+- **구간 트리밍 UI**: EffectsStep에 시작/끝 시간 입력 필드 (분:초 형식, blur 시 적용)
+  - AI 분석값 대신 원하는 구간으로 미세 조정 가능
+  - "AI 분석값으로 초기화" 버튼, 실시간 길이 표시
+  - 백엔드: `trim_start` / `trim_end` Optional 필드로 렌더 시 구간 오버라이드
+- **크롭 위치 조절**: 클로즈업/분할 효과 선택 시 크롭 중심 설정 UI 자동 표시
+  - 3×3 방향 그리드 피커 (↖/⬆/↗/◀/⊙/▶/↙/⬇/↘)
+  - 가로/세로 슬라이더 (0~100% 연속 조정)
+- **설정 전체 복사**: "📋 모든 구간에 복사" 버튼 — 현재 구간의 효과/자막/색상/속도 등을 나머지 구간에 일괄 적용 (trim은 구간별 유지)
+
+### Changed
+- `EffectsConfig` 스키마에 `trim_start: Optional[float]`, `trim_end: Optional[float]` 추가
+- 렌더 파이프라인 step 1: `trim_start`/`trim_end` 우선 적용, 유효성 검증 (최소 0.5초)
+
 ## [0.1.6.0] - 2026-03-23
 
 ### Added
