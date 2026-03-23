@@ -27,7 +27,7 @@ export default function StepNav() {
             disabled={!jobId && s.key !== 'input'}
             style={{
               flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 4, padding: '10px 4px', borderRadius: 10, whiteSpace: 'nowrap', overflow: 'hidden',
+              gap: 6, padding: '10px 8px', borderRadius: 10,
               border: active ? '2px solid #3182f6' : '2px solid transparent',
               background: active ? '#ebf3ff' : done ? '#f0fff4' : '#f8f9fa',
               color: active ? '#3182f6' : done ? '#1a7a3c' : '#8b95a1',
@@ -37,8 +37,8 @@ export default function StepNav() {
               transition: 'all 0.15s',
             }}
           >
-            <span style={{ fontSize: 16, flexShrink: 0 }}>{s.emoji}</span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 12 }}>{s.label}</span>
+            <span style={{ fontSize: 16 }}>{s.emoji}</span>
+            <span style={{}}>{s.label}</span>
           </button>
         )
       })}

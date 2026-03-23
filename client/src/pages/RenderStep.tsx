@@ -148,9 +148,9 @@ export default function RenderStep() {
 
           <ProgressBar />
 
-          <button onClick={startRender} disabled={rendering || selectedSegments.length === 0} style={{
+          <button onClick={startRender} disabled={rendering} style={{
             width: '100%',
-            background: (rendering || selectedSegments.length === 0) ? '#c9deff' : 'linear-gradient(135deg, #3182f6, #6366f1)',
+            background: rendering ? '#c9deff' : 'linear-gradient(135deg, #3182f6, #6366f1)',
             color: '#fff', border: 'none', borderRadius: 12,
             padding: '16px', fontSize: 16, fontWeight: 800, cursor: rendering ? 'not-allowed' : 'pointer',
           }}>
