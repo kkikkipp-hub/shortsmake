@@ -5,6 +5,18 @@ from config import WORKSPACE_DIR, FFMPEG_THREADS, FONTS_DIR
 from utils.progress import progress_manager
 from models.schemas import EffectsConfig, SubtitleStyle, ASPECT_RATIOS
 
+# 색상 프리셋 → FFmpeg vf 필터 문자열
+COLOR_FILTERS: dict[str, str] = {
+    "vivid":     "eq=saturation=1.5:contrast=1.1:brightness=0.02",
+    "cinematic": "eq=saturation=0.8:contrast=1.25:brightness=-0.05,"
+                 "colorbalance=rs=-0.08:gs=-0.04:bs=0.1",
+    "warm":      "colorbalance=rs=0.18:gs=0.05:bs=-0.12",
+    "cool":      "colorbalance=rs=-0.10:gs=0.02:bs=0.18",
+    "bw":        "hue=s=0,eq=contrast=1.3:brightness=0.02",
+    "vintage":   "eq=saturation=0.75:contrast=1.1:brightness=-0.03,"
+                 "colorbalance=rs=0.12:gs=0.04:bs=-0.08",
+}
+
 
 async def render_segment(job_id: str, segment_id: str,
                          effects_config: EffectsConfig) -> Path:
@@ -52,7 +64,15 @@ async def render_segment(job_id: str, segment_id: str,
         fx_path = seg_dir / f"{segment_id}_fx.mp4"
         await _apply_effects(current, fx_path, effects_config, w, h)
         current = fx_path
-        await progress_manager.send(job_id, "render", 50, "효과 적용 완료")
+        await progress_manager.send(job_id, "render", 45, "효과 적용 완료")
+
+    # 3.5) 색상 필터
+    color_filter = COLOR_FILTERS.get(effects_config.color_preset or "none", "")
+    if color_filter:
+        color_path = seg_dir / f"{segment_id}_color.mp4"
+        await _apply_color_filter(current, color_path, color_filter)
+        current = color_path
+        await progress_manager.send(job_id, "render", 55, f"색상 필터 완료 ({effects_config.color_preset})")
 
     # 4) 자막 오버레이
     sub_file = seg_dir / f"{segment_id}_subs.json"
@@ -63,14 +83,18 @@ async def render_segment(job_id: str, segment_id: str,
         current = sub_path
         await progress_manager.send(job_id, "render", 70, "자막 삽입 완료")
 
-    # 5) TTS 오디오 믹싱
+    # 5) TTS 오디오 믹싱 (+ 노이즈 감소)
     tts_file = job_dir / "tts" / f"{segment_id}_tts.mp3"
     output_path = out_dir / f"{segment_id}_final.mp4"
     if tts_file.exists():
-        await _mix_audio(current, tts_file, output_path)
+        await _mix_audio(current, tts_file, output_path,
+                         denoise=effects_config.denoise_audio)
         await progress_manager.send(job_id, "render", 90, "TTS 오디오 합성 완료")
     else:
-        await _copy_file(current, output_path)
+        if effects_config.denoise_audio:
+            await _apply_audio_denoise(current, output_path)
+        else:
+            await _copy_file(current, output_path)
 
     await progress_manager.send(job_id, "render", 100,
                                 f"{segment_id} 렌더링 완료!")
@@ -385,11 +409,43 @@ def _sec_to_ass_time(sec: float) -> str:
     return f"{h}:{m:02d}:{s:05.2f}"
 
 
+async def _apply_color_filter(input_path: Path, output: Path, vf: str):
+    """색상 필터 적용 (eq, colorbalance, hue 등)"""
+    cmd = [
+        "ffmpeg", "-y", "-i", str(input_path),
+        "-vf", vf,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-c:a", "copy",
+        "-threads", str(FFMPEG_THREADS),
+        str(output),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+    )
+    await proc.wait()
+
+
+async def _apply_audio_denoise(video: Path, output: Path):
+    """TTS 없이 노이즈 감소만 적용 (afftdn)"""
+    cmd = [
+        "ffmpeg", "-y", "-i", str(video),
+        "-af", "afftdn=nf=-20",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
+        str(output),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+    )
+    await proc.wait()
+
+
 async def _mix_audio(video: Path, tts_audio: Path, output: Path,
-                     tts_volume: float = 0.8, original_volume: float = 0.2):
-    """원본 오디오 + TTS 믹싱"""
+                     tts_volume: float = 0.8, original_volume: float = 0.2,
+                     denoise: bool = False):
+    """원본 오디오 + TTS 믹싱 (선택적 노이즈 감소)"""
+    denoise_filter = ",afftdn=nf=-20" if denoise else ""
     filter_complex = (
-        f"[0:a]volume={original_volume}[orig];"
+        f"[0:a]volume={original_volume}{denoise_filter}[orig];"
         f"[1:a]volume={tts_volume}[tts];"
         f"[orig][tts]amix=inputs=2:duration=first:normalize=0[aout]"
     )

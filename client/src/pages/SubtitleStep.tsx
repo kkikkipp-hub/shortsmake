@@ -71,6 +71,18 @@ export default function SubtitleStep() {
     setSubtitles(activeSegId, activeSubs.filter((_, i) => i !== idx))
   }
 
+  const FILLER_WORDS = ['음', '어', '그', '저', '뭐', '이제', '근데', '아', '음...', '어...', '그...']
+
+  function removeFillers() {
+    if (!activeSegId) return
+    const filtered = activeSubs.filter(sub => {
+      const t = sub.text.trim()
+      return !FILLER_WORDS.some(fw => t === fw || t === fw + '...' || t === fw + '.')
+        && t.length > 1
+    })
+    setSubtitles(activeSegId, filtered)
+  }
+
   function addSub() {
     if (!activeSegId) return
     const last = activeSubs[activeSubs.length - 1]
@@ -203,6 +215,10 @@ export default function SubtitleStep() {
               background: '#f2f4f6', border: 'none', borderRadius: 8,
               padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#4e5968', cursor: 'pointer',
             }}>+ 자막 추가</button>
+            <button onClick={removeFillers} style={{
+              background: '#fff0f0', border: '1px solid #fca5a5', borderRadius: 8,
+              padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#dc2626', cursor: 'pointer',
+            }}>🧹 필러 제거</button>
           </div>
 
           {/* GPT 자막 리라이팅 */}

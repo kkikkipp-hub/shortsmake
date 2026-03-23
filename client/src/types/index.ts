@@ -37,6 +37,8 @@ export interface EffectsConfig {
   aspect_ratio: string   // '9:16' | '1:1' | '4:5' | '16:9' | '4:3'
   effects: Effect[]
   subtitle_style: SubtitleStyle
+  color_preset: string   // none | vivid | cinematic | warm | cool | bw | vintage
+  denoise_audio: boolean
 }
 
 export interface Effect {
