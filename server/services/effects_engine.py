@@ -39,9 +39,13 @@ async def render_segment(job_id: str, segment_id: str,
     await progress_manager.send(job_id, "render", 0,
                                 f"{segment_id} 렌더링 시작... ({ratio})")
 
-    # 1) 구간 잘라내기
+    # 1) 구간 잘라내기 (trim 오버라이드가 있으면 우선 적용)
+    cut_start = effects_config.trim_start if effects_config.trim_start is not None else seg["start_sec"]
+    cut_end   = effects_config.trim_end   if effects_config.trim_end   is not None else seg["end_sec"]
+    cut_start = max(0.0, min(cut_start, cut_end - 0.5))  # 최소 0.5초 보장
+    cut_end   = max(cut_start + 0.5, cut_end)
     cut_path = seg_dir / f"{segment_id}_cut.mp4"
-    await _cut_segment(source, seg["start_sec"], seg["end_sec"], cut_path)
+    await _cut_segment(source, cut_start, cut_end, cut_path)
     await progress_manager.send(job_id, "render", 15, "구간 추출 완료")
 
     # 1.5) 영상 속도 조절 (기본값 1.0 → 변경 시만 적용)

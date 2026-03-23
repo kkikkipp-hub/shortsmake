@@ -127,6 +127,8 @@ class EffectsConfig(BaseModel):
     speed: float = 1.0             # 영상 속도 (0.5~2.0)
     watermark: str = ""            # 워터마크 텍스트 (빈 문자열이면 미적용)
     watermark_position: str = "bottom_right"  # top_left|top_right|bottom_left|bottom_right
+    trim_start: Optional[float] = None  # 구간 시작 오버라이드 (None이면 AI 분석값 사용)
+    trim_end: Optional[float] = None    # 구간 끝 오버라이드 (None이면 AI 분석값 사용)
 
 
 class TTSRequest(BaseModel):
