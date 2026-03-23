@@ -447,12 +447,21 @@ async def _bg_render(job_id: str, segment_ids: list[str]):
             config = EffectsConfig.model_validate_json(fx_file.read_text())
         else:
             config = EffectsConfig(segment_id=sid)
+        # 구간 시작 알림
+        await progress_manager.send(
+            job_id, "render",
+            (completed / total) * 100,
+            f"렌더링 중: {sid}",
+            {"seg_id": sid, "seg_progress": 0},
+        )
         await render_segment(job_id, sid, config)
         completed += 1
+        # 구간 완료 알림
         await progress_manager.send(
             job_id, "render",
             (completed / total) * 100,
             f"완료 {completed}/{total}: {sid}",
+            {"seg_id": sid, "seg_progress": 100},
         )
 
     try:
@@ -566,6 +575,48 @@ async def get_preview_file(job_id: str, filename: str):
         raise HTTPException(404, "미리보기 파일 없음")
     return FileResponse(path, media_type="video/mp4",
                         headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/jobs/{job_id}/segments/{segment_id}/thumbnail")
+async def create_thumbnail(
+    job_id: str, segment_id: str,
+    time_offset: float | None = None,
+    title: str = "",
+):
+    """구간 썸네일 생성 (중간 프레임 추출, 선택적 제목 오버레이)"""
+    from services.effects_engine import generate_thumbnail
+    _get_job(job_id)
+    try:
+        thumb = await generate_thumbnail(job_id, segment_id, time_offset, title)
+        return {"url": f"/api/jobs/{job_id}/thumb/{thumb.name}"}
+    except Exception as e:
+        raise HTTPException(500, f"썸네일 생성 실패: {e}")
+
+
+@app.post("/api/jobs/{job_id}/font")
+async def upload_font(job_id: str, file: UploadFile = File(...)):
+    """커스텀 폰트 업로드 (TTF/OTF) — FONTS_DIR에 저장"""
+    from config import FONTS_DIR
+    suffix = Path(file.filename or "font.ttf").suffix.lower()
+    if suffix not in (".ttf", ".otf"):
+        raise HTTPException(400, "TTF 또는 OTF 파일만 허용됩니다")
+    FONTS_DIR.mkdir(parents=True, exist_ok=True)
+    font_path = FONTS_DIR / (Path(file.filename or "font.ttf").stem + suffix)
+    font_path.write_bytes(await file.read())
+    return {"font_name": font_path.stem, "filename": font_path.name}
+
+
+@app.get("/api/fonts")
+async def list_fonts():
+    """사용 가능한 폰트 목록 (내장 + 업로드)"""
+    from config import FONTS_DIR
+    built_in = [{"name": "GmarketSansTTFBold", "label": "지마켓산스 볼드 (기본)"}]
+    custom = []
+    if FONTS_DIR.exists():
+        for f in sorted(FONTS_DIR.glob("*.ttf")) + sorted(FONTS_DIR.glob("*.otf")):
+            if f.stem != "GmarketSansTTFBold":
+                custom.append({"name": f.stem, "label": f.stem})
+    return built_in + custom
 
 
 @app.post("/api/jobs/{job_id}/bgm")

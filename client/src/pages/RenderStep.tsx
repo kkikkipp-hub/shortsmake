@@ -5,7 +5,7 @@ import ProgressBar from '../components/ProgressBar'
 import type { Voice } from '../types'
 
 export default function RenderStep() {
-  const { jobId, selectedSegments, outputs, setOutputs, setError, job } = useProjectStore()
+  const { jobId, selectedSegments, outputs, setOutputs, setError, job, progress, segmentProgress } = useProjectStore()
   const [voices, setVoices] = useState<Voice[]>([])
   const [voice, setVoice] = useState('ko-KR-SunHiNeural')
   const [speed, setSpeed] = useState(1.0)
@@ -19,6 +19,7 @@ export default function RenderStep() {
   const [showLog, setShowLog] = useState(false)
   const bgmInputRef = useRef<HTMLInputElement>(null)
   const logEndRef = useRef<HTMLDivElement>(null)
+  const renderingRef = useRef(false)
   const api = useApi()
 
   useEffect(() => {
@@ -74,47 +75,49 @@ export default function RenderStep() {
   // 최종 렌더링
   async function startRender() {
     if (!jobId) return
+    renderingRef.current = true
     setRendering(true)
     setRenderLog([])
     setShowLog(true)
-    const addLog = (msg: string) => {
-      const ts = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      setRenderLog(prev => [...prev, `[${ts}] ${msg}`])
-    }
-    addLog(`렌더링 시작 — ${selectedSegments.length}개 구간`)
+    const ts = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    setRenderLog([`[${ts}] 렌더링 시작 — ${selectedSegments.length}개 구간`])
     try {
       await api.renderSegments(jobId, selectedSegments)
-      // polling
-      let retries = 0
-      let lastProgress = ''
-      while (retries < 300) {
-        await new Promise(r => setTimeout(r, 3000))
-        const data = await api.getJob(jobId)
-        if (data.progress && data.progress !== lastProgress) {
-          addLog(data.progress)
-          lastProgress = data.progress
-        }
-        if (data.status === 'completed') {
-          addLog('✅ 렌더링 완료!')
-          const files = await api.getOutputs(jobId)
-          setOutputs(files)
-          setLocalStep('done')
-          break
-        }
-        if (data.status === 'failed') {
-          addLog('❌ 렌더링 실패: ' + (data.error || '알 수 없는 오류'))
-          setError(data.error || '렌더링 실패')
-          break
-        }
-        retries++
-      }
+      // WS가 진행률을 전달함 — useEffect에서 감지
     } catch (e: any) {
-      addLog('❌ 오류: ' + e.message)
+      const ts2 = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      setRenderLog(prev => [...prev, `[${ts2}] ❌ 오류: ${e.message}`])
       setError(e.message)
-    } finally {
+      renderingRef.current = false
       setRendering(false)
     }
   }
+
+  // WS 진행률 감시 — 렌더링 중일 때만 반응
+  useEffect(() => {
+    if (!renderingRef.current || !progress) return
+    const ts = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    if (progress.message) {
+      setRenderLog(prev => {
+        if (prev.length > 0 && prev[prev.length - 1].endsWith(progress.message)) return prev
+        return [...prev, `[${ts}] ${progress.message}`]
+      })
+    }
+    if (progress.step === 'render' && progress.progress >= 100) {
+      setRenderLog(prev => [...prev, `[${ts}] ✅ 렌더링 완료!`])
+      api.getOutputs(jobId!).then((files: any[]) => {
+        setOutputs(files)
+        setLocalStep('done')
+      }).catch(() => {})
+      renderingRef.current = false
+      setRendering(false)
+    } else if (progress.step === 'error') {
+      setRenderLog(prev => [...prev, `[${ts}] ❌ ${progress.message}`])
+      setError(progress.message)
+      renderingRef.current = false
+      setRendering(false)
+    }
+  }, [progress])
 
   // 로그 자동 스크롤
   useEffect(() => {
@@ -237,6 +240,32 @@ export default function RenderStep() {
           </p>
 
           <ProgressBar />
+
+          {/* 구간별 진행률 */}
+          {rendering && selectedSegments.length > 1 && (
+            <div style={{ marginTop: 12, marginBottom: 4 }}>
+              {selectedSegments.map(sid => {
+                const pct = segmentProgress[sid] ?? 0
+                return (
+                  <div key={sid} style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#4e5968', marginBottom: 3 }}>
+                      <span>{sid.replace('seg_', '구간 ')}</span>
+                      <span style={{ fontWeight: 700, color: pct >= 100 ? '#1a7a3c' : '#3182f6' }}>
+                        {pct >= 100 ? '✅ 완료' : `${pct}%`}
+                      </span>
+                    </div>
+                    <div style={{ height: 6, background: '#e5e8eb', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', borderRadius: 3,
+                        background: pct >= 100 ? '#1a7a3c' : '#3182f6',
+                        width: `${pct}%`, transition: 'width 0.4s ease',
+                      }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           <button onClick={startRender} disabled={rendering || selectedSegments.length === 0} style={{
             width: '100%',

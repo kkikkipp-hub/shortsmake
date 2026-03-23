@@ -2,6 +2,19 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.11.0] - 2026-03-23
+
+### Added
+- **Job 관리 대시보드**: 헤더 "📂 이전 작업" 버튼 → 슬라이드인 패널
+  - 이전 작업 목록 (최신순 정렬), 상태 배지 색상 구분
+  - ZIP 다운로드 버튼 (출력 파일 있는 경우), 작업 삭제 버튼
+- **자막 스타일 고급화**: Bold/Italic 토글, 그림자 깊이(0-4), 자간(0-10) 슬라이더
+  - ASS 자막 포맷에 Bold(-1/0), Italic(1/0), Shadow, Spacing 필드 적용
+- **폰트 업로드**: EffectsStep에서 TTF/OTF 업로드 → 폰트 목록 셀렉터
+- **썸네일 자동 생성**: 구간 중간 프레임 FFmpeg 추출, 다운로드 지원
+- **배치 렌더링 구간별 진행률**: WS `detail.seg_id/seg_progress` → per-segment 프로그레스바
+- **WebSocket 자동 재연결**: 지수 백오프(최대 30초, 최대 10회), 폴링 방식 완전 제거
+
 ## [0.1.10.0] - 2026-03-23
 
 ### Added

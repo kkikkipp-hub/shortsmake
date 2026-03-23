@@ -376,19 +376,30 @@ async def _burn_subtitles(input_path: Path, subs_json: Path,
     await proc.wait()
 
 
+def _hex_to_ass(hex_color: str) -> str:
+    """#RRGGBB → &H00BBGGRR"""
+    h = hex_color.lstrip("#")
+    if len(h) == 6:
+        return f"&H00{h[4:6]}{h[2:4]}{h[0:2]}"
+    return "&H00000000"
+
+
 def _generate_ass(subs: list[dict], output: Path, style: SubtitleStyle,
                   w: int = 1080, h: int = 1920):
     """ASS 자막 파일 생성 (지마켓산스 볼드 + 스타일 적용)"""
-    color_hex = style.color.lstrip("#")
-    # ASS는 &HBBGGRR 형식
-    ass_color = f"&H00{color_hex[4:6]}{color_hex[2:4]}{color_hex[0:2]}"
-    outline_hex = style.outline_color.lstrip("#")
-    ass_outline = f"&H00{outline_hex[4:6]}{outline_hex[2:4]}{outline_hex[0:2]}"
+    ass_color   = _hex_to_ass(style.color)
+    ass_outline = _hex_to_ass(style.outline_color)
+    shadow_hex  = getattr(style, "shadow_color", "#000000")
+    ass_shadow_color = _hex_to_ass(shadow_hex)
 
     alignment = {"top": 8, "center": 5, "bottom": 2}.get(style.position, 2)
     margin_v = 80 if style.position == "bottom" else 40
 
-    font_name = style.font_name or "GmarketSansTTFBold"
+    font_name     = style.font_name or "GmarketSansTTFBold"
+    bold_val      = -1 if getattr(style, "bold", True) else 0
+    italic_val    = 1  if getattr(style, "italic", False) else 0
+    shadow_depth  = int(getattr(style, "shadow", 1))
+    letter_spc    = float(getattr(style, "letter_spacing", 1.0))
 
     header = f"""[Script Info]
 Title: ShortsMake Subtitles
@@ -398,7 +409,7 @@ PlayResY: {h}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{style.font_size},{ass_color},&H000000FF,{ass_outline},&H80000000,1,0,0,0,100,100,1,0,1,{style.outline_width},1,{alignment},20,20,{margin_v},1
+Style: Default,{font_name},{style.font_size},{ass_color},&H000000FF,{ass_outline},{ass_shadow_color},{bold_val},{italic_val},0,0,100,100,{letter_spc:.1f},0,1,{style.outline_width},{shadow_depth},{alignment},20,20,{margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -673,3 +684,50 @@ def _find_source(job_dir: Path) -> Path:
         if p.exists():
             return p
     raise FileNotFoundError(f"원본 영상 없음: {job_dir}")
+
+
+async def generate_thumbnail(job_id: str, segment_id: str,
+                              time_offset: float | None = None,
+                              title: str = "") -> Path:
+    """구간 중간 프레임을 썸네일 JPEG로 추출, 선택적으로 제목 오버레이"""
+    job_dir = WORKSPACE_DIR / job_id
+    seg_file = job_dir / "segments.json"
+    if not seg_file.exists():
+        raise FileNotFoundError("segments.json 없음")
+
+    segs = json.loads(seg_file.read_text())
+    seg = next((s for s in segs if s["id"] == segment_id), None)
+    if seg is None:
+        raise ValueError(f"구간 없음: {segment_id}")
+
+    source = _find_source(job_dir)
+    t = time_offset if time_offset is not None else (seg["start_sec"] + seg["end_sec"]) / 2
+
+    thumb_dir = job_dir / "thumbnails"
+    thumb_dir.mkdir(exist_ok=True)
+    out = thumb_dir / f"{segment_id}_thumb.jpg"
+
+    # 프레임 추출
+    if title:
+        safe_title = title.replace("'", "\\'").replace(":", "\\:")
+        vf = (
+            f"select='eq(n,0)',scale=1080:-1,"
+            f"drawtext=text='{safe_title}':fontsize=60:fontcolor=white:x=(w-tw)/2:y=h-th-60:"
+            f"shadowcolor=black:shadowx=2:shadowy=2"
+        )
+    else:
+        vf = "select='eq(n,0)',scale=1080:-1"
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", str(t), "-i", str(source),
+        "-vf", vf,
+        "-vframes", "1",
+        "-q:v", "3",
+        str(out),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+    )
+    await proc.wait()
+    return out

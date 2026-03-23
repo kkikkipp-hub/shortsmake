@@ -104,6 +104,12 @@ class SubtitleStyle(BaseModel):
     position: str = "bottom"  # top, center, bottom
     bg_color: Optional[str] = None
     bg_opacity: float = 0.6
+    # 고급 스타일
+    bold: bool = True
+    italic: bool = False
+    shadow: int = 1              # 0=없음, 1~4=깊이
+    shadow_color: str = "#000000"
+    letter_spacing: float = 1.0  # 자간 (ASS Spacing)
 
 
 # 화면 비율 프리셋

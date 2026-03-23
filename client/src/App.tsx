@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useProjectStore } from './stores/projectStore'
 import { useWebSocket } from './hooks/useWebSocket'
 import StepNav from './components/StepNav'
@@ -6,6 +7,7 @@ import SegmentsStep from './pages/SegmentsStep'
 import SubtitleStep from './pages/SubtitleStep'
 import EffectsStep from './pages/EffectsStep'
 import RenderStep from './pages/RenderStep'
+import JobDashboard from './components/JobDashboard'
 
 function StepContent() {
   const step = useProjectStore((s) => s.step)
@@ -29,6 +31,7 @@ const STEP_RETRY_HINT: Record<string, string> = {
 
 export default function App() {
   const { jobId, error, step, setError, setStep, reset } = useProjectStore()
+  const [showDashboard, setShowDashboard] = useState(false)
   useWebSocket(jobId)
 
   return (
@@ -51,6 +54,15 @@ export default function App() {
             롱폼 → 숏폼 자동 변환기
           </div>
         </div>
+        <button
+          onClick={() => setShowDashboard(true)}
+          style={{
+            background: 'none', border: '1px solid #e5e8eb', borderRadius: 8,
+            padding: '6px 12px', fontSize: 12, color: '#4e5968', cursor: 'pointer',
+          }}
+        >
+          📂 이전 작업
+        </button>
         {jobId && (
           <button
             onClick={() => { if (confirm('처음부터 다시 시작할까요? 현재 작업이 초기화됩니다.')) reset() }}
@@ -112,6 +124,8 @@ export default function App() {
 
         <StepContent />
       </div>
+
+      {showDashboard && <JobDashboard onClose={() => setShowDashboard(false)} />}
     </div>
   )
 }

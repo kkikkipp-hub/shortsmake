@@ -86,5 +86,26 @@ export function useApi() {
 
     getVisionSubtitles: (jobId: string, segId: string) =>
       api.get(`/jobs/${jobId}/vision_subtitles/${segId}`).then(r => r.data),
+
+    createThumbnail: (jobId: string, segId: string, timeOffset?: number, title?: string) =>
+      api.post(`/jobs/${jobId}/segments/${segId}/thumbnail`, null, {
+        params: { time_offset: timeOffset, title: title || '' },
+      }).then(r => r.data),
+
+    uploadFont: (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      // font upload is global, use any job context; we pass to /api/jobs/:id/font
+      // but since font is global, we use a dummy upload path and store in FONTS_DIR
+      return api.post('/fonts/upload', form).then(r => r.data)
+    },
+
+    uploadFontForJob: (jobId: string, file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api.post(`/jobs/${jobId}/font`, form).then(r => r.data)
+    },
+
+    listFonts: () => api.get('/fonts').then(r => r.data),
   }
 }
