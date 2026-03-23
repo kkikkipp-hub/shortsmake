@@ -2,6 +2,15 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.8.0] - 2026-03-23
+
+### Added
+- **빠른 미리보기**: EffectsStep에 "▶ 미리보기 생성" 버튼 — 저해상도(480p)/최대 10초 클립을 자막·TTS·BGM 없이 즉시 생성
+  - `POST /api/jobs/{id}/segments/{seg_id}/preview` + `GET /api/jobs/{id}/preview/{filename}`
+  - 결과는 EffectsStep 내 인라인 `<video>` 플레이어로 즉시 재생
+- **자막 전체 타이밍 오프셋**: SubtitleStep 툴바에 빠른 버튼 6종 (-1s/-0.5s/-0.2s/+0.2s/+0.5s/+1s) + 직접 입력 필드
+  - 전체 자막을 N초 앞/뒤로 일괄 이동, start/end 최솟값 0 보장
+
 ## [0.1.7.0] - 2026-03-23
 
 ### Added
