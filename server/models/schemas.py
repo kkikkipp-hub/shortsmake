@@ -122,6 +122,8 @@ class EffectsConfig(BaseModel):
     aspect_ratio: str = "9:16"     # 9:16, 1:1, 4:5, 16:9, 4:3
     effects: list[Effect] = []
     subtitle_style: SubtitleStyle = SubtitleStyle()
+    color_preset: str = "none"     # none, vivid, cinematic, warm, cool, bw
+    denoise_audio: bool = False    # afftdn 노이즈 감소
 
 
 class TTSRequest(BaseModel):

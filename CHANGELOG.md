@@ -2,6 +2,18 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.3.0] - 2026-03-23
+
+### Added
+- **색상 필터**: 원본/비비드/시네마틱/따뜻한/쿨톤/흑백/빈티지 7가지 프리셋 — FFmpeg `eq`·`colorbalance`·`hue` 필터 기반
+- **배경 노이즈 감소**: EffectsStep 토글 — `afftdn` 필터로 잡음 제거 (원본 오디오 및 TTS 믹스 시 모두 적용)
+- **필러워드 제거**: SubtitleStep "🧹 필러 제거" 버튼 — 음/어/그/저 등 단독 필러 자막 자동 삭제
+
+### Changed
+- `EffectsConfig` 스키마에 `color_preset: str` + `denoise_audio: bool` 필드 추가
+- `_mix_audio()` 함수에 `denoise` 파라미터 추가
+- 렌더링 진행률 구간 재조정 (45%→색상 필터→55%→자막→70%→TTS→90%)
+
 ## [0.1.2.0] - 2026-03-23
 
 ### Added

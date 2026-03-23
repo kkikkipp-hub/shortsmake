@@ -49,6 +49,16 @@ const EFFECT_PRESETS: { label: string; emoji: string; desc: string; effects: Eff
   },
 ]
 
+const COLOR_PRESETS = [
+  { key: 'none',      label: '원본',       emoji: '⬜', desc: '색보정 없음' },
+  { key: 'vivid',     label: '비비드',     emoji: '🌈', desc: '채도+대비 강화' },
+  { key: 'cinematic', label: '시네마틱',   emoji: '🎬', desc: '영화 필름 톤' },
+  { key: 'warm',      label: '따뜻한',     emoji: '🌅', desc: '황금빛 워밍' },
+  { key: 'cool',      label: '쿨톤',       emoji: '🧊', desc: '차가운 블루' },
+  { key: 'bw',        label: '흑백',       emoji: '⚫', desc: '모노크롬' },
+  { key: 'vintage',   label: '빈티지',     emoji: '📷', desc: '레트로 필름' },
+]
+
 const DEFAULT_STYLE = {
   font_name: 'GmarketSansTTFBold',
   font_size: 44, color: '#FFFFFF', outline_color: '#000000',
@@ -66,6 +76,8 @@ export default function EffectsStep() {
     aspect_ratio: '9:16',
     effects: [],
     subtitle_style: DEFAULT_STYLE,
+    color_preset: 'none',
+    denoise_audio: false,
   }
 
   function updateConfig(partial: Partial<EffectsConfig>) {
@@ -185,6 +197,59 @@ export default function EffectsStep() {
             )
           })}
         </div>
+      </div>
+
+      {/* 색상 필터 */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>🎨 색상 필터</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+          {COLOR_PRESETS.map(p => {
+            const active = (config.color_preset || 'none') === p.key
+            return (
+              <button key={p.key}
+                onClick={() => updateConfig({ color_preset: p.key })}
+                title={p.desc}
+                style={{
+                  padding: '10px 4px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+                  border: active ? '2px solid #f59e0b' : '2px solid #e5e8eb',
+                  background: active ? '#fffbeb' : '#fff',
+                  color: active ? '#b45309' : '#4e5968',
+                  cursor: 'pointer', textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: 20, marginBottom: 2 }}>{p.emoji}</div>
+                <div>{p.label}</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 오디오 설정 */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>🔊 오디오 설정</h3>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <div
+            onClick={() => updateConfig({ denoise_audio: !config.denoise_audio })}
+            style={{
+              width: 40, height: 22, borderRadius: 11,
+              background: config.denoise_audio ? '#3182f6' : '#e5e8eb',
+              position: 'relative', transition: 'background 0.2s', cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <div style={{
+              width: 18, height: 18, borderRadius: 9, background: '#fff',
+              position: 'absolute', top: 2,
+              left: config.denoise_audio ? 20 : 2,
+              transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#191f28' }}>배경 노이즈 감소</div>
+            <div style={{ fontSize: 11, color: '#8b95a1' }}>afftdn 필터로 잡음 제거 — 녹음 품질이 낮을 때 유용</div>
+          </div>
+        </label>
       </div>
 
       {/* 자막 스타일 */}
