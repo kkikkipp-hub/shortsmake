@@ -2,6 +2,18 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.4.0] - 2026-03-23
+
+### Added
+- **자막 스타일 프리셋**: 기본/TikTok 노란/시네마/Bold/미니멀/배경박스 6가지 빠른 프리셋 버튼 (EffectsStep)
+- **ZIP 일괄 다운로드**: 렌더링 완료 후 모든 영상을 ZIP으로 한 번에 다운로드 (`GET /api/jobs/{id}/outputs/zip`)
+- **BGM 업로드 + 믹싱**: MP3/AAC/WAV 파일을 업로드하면 최종 렌더링 시 낮은 볼륨(8%)으로 자동 믹싱 (루프 반복)
+
+### Changed
+- 렌더링 파이프라인: TTS 믹싱 → BGM 믹싱 → 최종 파일 순서로 재구성 (6단계)
+- `StreamingResponse` + `zipfile` 기반 ZIP 생성 (메모리 내)
+- BGM 파일은 `{job_dir}/bgm.*` 경로에 저장, 렌더링 시 자동 감지
+
 ## [0.1.3.0] - 2026-03-23
 
 ### Added

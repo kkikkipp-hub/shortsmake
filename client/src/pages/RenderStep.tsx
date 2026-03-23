@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useProjectStore } from '../stores/projectStore'
 import { useApi } from '../hooks/useApi'
 import ProgressBar from '../components/ProgressBar'
@@ -12,6 +12,10 @@ export default function RenderStep() {
   const [ttsProgress, setTtsProgress] = useState('')
   const [rendering, setRendering] = useState(false)
   const [step, setLocalStep] = useState<'tts' | 'render' | 'done'>('tts')
+  const [bgmFile, setBgmFile] = useState<File | null>(null)
+  const [bgmUploading, setBgmUploading] = useState(false)
+  const [bgmUploaded, setBgmUploaded] = useState(false)
+  const bgmInputRef = useRef<HTMLInputElement>(null)
   const api = useApi()
 
   useEffect(() => {
@@ -29,6 +33,21 @@ export default function RenderStep() {
       }).catch(() => {})
     }
   }, [job?.status, jobId])
+
+  async function uploadBgm(file: File) {
+    if (!jobId) return
+    setBgmUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      await fetch(`/api/jobs/${jobId}/bgm`, { method: 'POST', body: form })
+      setBgmUploaded(true)
+    } catch (e: any) {
+      setError('BGM 업로드 실패: ' + e.message)
+    } finally {
+      setBgmUploading(false)
+    }
+  }
 
   // TTS 합성
   async function synthesizeAll() {
@@ -119,6 +138,54 @@ export default function RenderStep() {
             </div>
           )}
 
+          {/* BGM 업로드 */}
+          <div style={{
+            background: '#f8f0ff', borderRadius: 10, padding: '14px 16px',
+            marginBottom: 16, border: '1px solid #d8b4fe',
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#7c3aed', marginBottom: 8 }}>
+              🎵 배경음악 (BGM) — 선택사항
+            </div>
+            <div style={{ fontSize: 11, color: '#a78bfa', marginBottom: 10 }}>
+              MP3/AAC/WAV 파일을 업로드하면 렌더링 시 낮은 볼륨으로 자동 믹싱됩니다
+            </div>
+            <input
+              ref={bgmInputRef}
+              type="file"
+              accept="audio/*"
+              style={{ display: 'none' }}
+              onChange={async e => {
+                const f = e.target.files?.[0]
+                if (f) { setBgmFile(f); await uploadBgm(f) }
+              }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                onClick={() => bgmInputRef.current?.click()}
+                disabled={bgmUploading}
+                style={{
+                  background: bgmUploaded ? '#7c3aed' : '#ede9fe',
+                  color: bgmUploaded ? '#fff' : '#7c3aed',
+                  border: 'none', borderRadius: 8,
+                  padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                {bgmUploading ? '업로드 중...' : bgmUploaded ? '✓ 업로드 완료' : '📂 파일 선택'}
+              </button>
+              {bgmFile && (
+                <span style={{ fontSize: 11, color: '#7c3aed' }}>{bgmFile.name}</span>
+              )}
+              {bgmUploaded && (
+                <button
+                  onClick={() => { setBgmFile(null); setBgmUploaded(false) }}
+                  style={{ background: 'none', border: 'none', color: '#a78bfa', cursor: 'pointer', fontSize: 12 }}
+                >
+                  ✕ 제거
+                </button>
+              )}
+            </div>
+          </div>
+
           <ProgressBar />
 
           <div style={{ display: 'flex', gap: 10 }}>
@@ -167,6 +234,20 @@ export default function RenderStep() {
             <h3 style={{ fontSize: 18, fontWeight: 800, color: '#1a7a3c' }}>
               {outputs.length}개 숏폼 완성!
             </h3>
+            {outputs.length > 1 && (
+              <a
+                href={`/api/jobs/${jobId}/outputs/zip`}
+                download
+                style={{
+                  display: 'inline-block', marginTop: 12,
+                  background: '#1a7a3c', color: '#fff', borderRadius: 10,
+                  padding: '10px 22px', fontSize: 14, fontWeight: 700,
+                  textDecoration: 'none',
+                }}
+              >
+                📦 전체 ZIP 다운로드
+              </a>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
