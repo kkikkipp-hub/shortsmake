@@ -125,6 +125,8 @@ class EffectsConfig(BaseModel):
     color_preset: str = "none"     # none, vivid, cinematic, warm, cool, bw
     denoise_audio: bool = False    # afftdn 노이즈 감소
     speed: float = 1.0             # 영상 속도 (0.5~2.0)
+    watermark: str = ""            # 워터마크 텍스트 (빈 문자열이면 미적용)
+    watermark_position: str = "bottom_right"  # top_left|top_right|bottom_left|bottom_right
 
 
 class TTSRequest(BaseModel):
