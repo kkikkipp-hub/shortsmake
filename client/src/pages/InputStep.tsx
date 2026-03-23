@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '../stores/projectStore'
 import { useApi } from '../hooks/useApi'
 import ProgressBar from '../components/ProgressBar'
@@ -25,6 +25,10 @@ const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }>
 
 export default function InputStep() {
   const [url, setUrl] = useState('')
+  const [inputMode, setInputMode] = useState<'url' | 'file'>('url')
+  const [dragOver, setDragOver] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [prevJobs, setPrevJobs] = useState<PrevJob[]>([])
   const [loadingJobs, setLoadingJobs] = useState(true)
   const { job, loading, setJobId, setJob, setStep, setSegments, setSelectedSegments, setSubtitles, setLoading, setError } = useProjectStore()
@@ -71,6 +75,30 @@ export default function InputStep() {
       setError('시간 초과')
     } catch (e: any) {
       setError(e.response?.data?.detail || e.message || '오류 발생')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleFileUpload() {
+    if (!selectedFile) return
+    setLoading(true)
+    setError(null)
+    try {
+      const { id } = await api.createJob()
+      setJobId(id)
+      const form = new FormData()
+      form.append('file', selectedFile)
+      const res = await fetch(`/api/jobs/${id}/upload`, { method: 'POST', body: form })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: '업로드 실패' }))
+        throw new Error(err.detail || '업로드 실패')
+      }
+      const data = await res.json()
+      setJob({ id, status: 'downloaded', meta: data.meta })
+      setStep('segments')
+    } catch (e: any) {
+      setError(e.message || '파일 업로드 실패')
     } finally {
       setLoading(false)
     }
@@ -126,10 +154,10 @@ export default function InputStep() {
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div style={{ fontSize: 48, marginBottom: 8 }}>🎬</div>
         <h2 style={{ fontSize: 22, fontWeight: 800, color: '#191f28', marginBottom: 6 }}>
-          롱폼 영상 URL 입력
+          영상 불러오기
         </h2>
         <p style={{ fontSize: 14, color: '#8b95a1' }}>
-          저작권 프리 영상의 URL을 입력하면 AI가 분석하여 숏폼을 만들어요
+          URL 또는 로컬 파일을 선택하면 AI가 분석해 숏폼을 만들어요
         </p>
       </div>
 
@@ -137,36 +165,117 @@ export default function InputStep() {
         background: '#fff', borderRadius: 16, padding: 24,
         border: '1px solid #e5e8eb', boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
       }}>
-        <label style={{ fontSize: 13, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 8 }}>
-          영상 URL
-        </label>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !loading && handleSubmit()}
-            placeholder="https://www.youtube.com/watch?v=..."
-            disabled={loading}
-            style={{
-              flex: 1, border: '1.5px solid #e5e8eb', borderRadius: 10,
-              padding: '12px 14px', fontSize: 14, outline: 'none',
-              fontFamily: 'monospace',
-            }}
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !url.trim() || !isValidUrl(url.trim())}
-            style={{
-              background: loading ? '#c9deff' : '#3182f6',
-              color: '#fff', border: 'none', borderRadius: 10,
-              padding: '12px 20px', fontSize: 14, fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {loading ? '처리 중...' : '분석 시작'}
-          </button>
+        {/* 탭 전환 */}
+        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderRadius: 10, overflow: 'hidden', border: '1px solid #e5e8eb' }}>
+          {(['url', 'file'] as const).map(mode => (
+            <button key={mode}
+              onClick={() => setInputMode(mode)}
+              style={{
+                flex: 1, padding: '10px', fontSize: 13, fontWeight: 700,
+                border: 'none', cursor: 'pointer',
+                background: inputMode === mode ? '#3182f6' : '#f8f9fa',
+                color: inputMode === mode ? '#fff' : '#4e5968',
+                transition: 'all 0.15s',
+              }}
+            >
+              {mode === 'url' ? '🔗 URL 입력' : '📁 파일 업로드'}
+            </button>
+          ))}
         </div>
+
+        {inputMode === 'url' ? (
+          <>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 8 }}>
+              영상 URL
+            </label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !loading && handleSubmit()}
+                placeholder="https://www.youtube.com/watch?v=..."
+                disabled={loading}
+                style={{
+                  flex: 1, border: '1.5px solid #e5e8eb', borderRadius: 10,
+                  padding: '12px 14px', fontSize: 14, outline: 'none',
+                  fontFamily: 'monospace',
+                }}
+              />
+              <button
+                onClick={handleSubmit}
+                disabled={loading || !url.trim() || !isValidUrl(url.trim())}
+                style={{
+                  background: loading ? '#c9deff' : '#3182f6',
+                  color: '#fff', border: 'none', borderRadius: 10,
+                  padding: '12px 20px', fontSize: 14, fontWeight: 700,
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {loading ? '처리 중...' : '분석 시작'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*,.mp4,.mov,.avi,.mkv,.webm"
+              style={{ display: 'none' }}
+              onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+            />
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => {
+                e.preventDefault(); setDragOver(false)
+                const f = e.dataTransfer.files[0]
+                if (f) setSelectedFile(f)
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${dragOver ? '#3182f6' : '#e5e8eb'}`,
+                borderRadius: 12, padding: '32px 20px', textAlign: 'center',
+                background: dragOver ? '#ebf3ff' : '#f8f9fa',
+                cursor: 'pointer', marginBottom: 16, transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: 36, marginBottom: 8 }}>📂</div>
+              {selectedFile ? (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#191f28' }}>{selectedFile.name}</div>
+                  <div style={{ fontSize: 12, color: '#8b95a1', marginTop: 4 }}>
+                    {(selectedFile.size / 1024 / 1024).toFixed(1)} MB
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#4e5968' }}>
+                    파일을 드래그하거나 클릭해서 선택
+                  </div>
+                  <div style={{ fontSize: 12, color: '#8b95a1', marginTop: 4 }}>
+                    MP4, MOV, AVI, MKV, WEBM 지원
+                  </div>
+                </>
+              )}
+            </div>
+            <button
+              onClick={handleFileUpload}
+              disabled={loading || !selectedFile}
+              style={{
+                width: '100%',
+                background: loading ? '#c9deff' : selectedFile ? '#3182f6' : '#e5e8eb',
+                color: selectedFile ? '#fff' : '#8b95a1',
+                border: 'none', borderRadius: 10,
+                padding: '12px', fontSize: 14, fontWeight: 700,
+                cursor: loading || !selectedFile ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {loading ? '업로드 중...' : '📤 파일 분석 시작'}
+            </button>
+          </>
+        )}
 
         <div style={{ marginTop: 16 }}>
           <ProgressBar />
@@ -177,7 +286,7 @@ export default function InputStep() {
             <div style={{ fontSize: 15, fontWeight: 700, color: '#191f28', marginBottom: 8 }}>
               {meta.title}
             </div>
-            <div style={{ display: 'flex', gap: 16, fontSize: 13, color: '#8b95a1' }}>
+            <div style={{ display: 'flex', gap: 16, fontSize: 13, color: '#8b95a1', flexWrap: 'wrap' }}>
               <span>길이: {formatDuration(meta.duration)}</span>
               <span>해상도: {meta.resolution}</span>
             </div>
@@ -258,7 +367,8 @@ export default function InputStep() {
         marginTop: 20, background: '#f0f0ff', borderRadius: 12,
         padding: '14px 18px', fontSize: 12, color: '#6366f1', lineHeight: 1.6,
       }}>
-        💡 <strong>지원 플랫폼:</strong> YouTube, Vimeo, Pexels, Pixabay 등 yt-dlp가 지원하는 모든 사이트
+        💡 <strong>URL 모드:</strong> YouTube, Vimeo, Pexels 등 yt-dlp 지원 사이트 &nbsp;|&nbsp;
+        <strong>파일 모드:</strong> 로컬 MP4·MOV·AVI·MKV·WEBM 직접 업로드
       </div>
     </div>
   )

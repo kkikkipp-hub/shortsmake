@@ -44,6 +44,16 @@ async def render_segment(job_id: str, segment_id: str,
     await _cut_segment(source, seg["start_sec"], seg["end_sec"], cut_path)
     await progress_manager.send(job_id, "render", 15, "구간 추출 완료")
 
+    # 1.5) 영상 속도 조절 (기본값 1.0 → 변경 시만 적용)
+    speed = getattr(effects_config, "speed", 1.0) or 1.0
+    if abs(speed - 1.0) > 0.01:
+        speed_path = seg_dir / f"{segment_id}_speed.mp4"
+        await _apply_speed(cut_path, speed_path, speed)
+        current = speed_path
+        await progress_manager.send(job_id, "render", 20, f"속도 조절 완료 ({speed}x)")
+    else:
+        current = cut_path
+
     # 2) 화면 비율 변환
     # closeup_fill, split_top_bottom, split_left_right는 자체적으로 비율 변환하므로 스킵
     has_layout_effect = any(
@@ -53,11 +63,9 @@ async def render_segment(job_id: str, segment_id: str,
     needs_convert = ratio != "16:9" and not has_layout_effect
     if needs_convert:
         converted_path = seg_dir / f"{segment_id}_ratio.mp4"
-        await _convert_aspect(cut_path, converted_path, w, h)
+        await _convert_aspect(current, converted_path, w, h)
         current = converted_path
         await progress_manager.send(job_id, "render", 30, f"비율 변환 완료 ({ratio})")
-    else:
-        current = cut_path
 
     # 3) 영상 효과 적용
     if effects_config.effects:
@@ -471,6 +479,27 @@ async def _mix_audio(video: Path, tts_audio: Path, output: Path,
         "-map", "0:v", "-map", "[aout]",
         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
         "-shortest",
+        str(output),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+    )
+    await proc.wait()
+
+
+async def _apply_speed(video: Path, output: Path, speed: float):
+    """영상 속도 조절 (setpts + atempo, 0.5x~2.0x)"""
+    # atempo는 0.5~2.0만 지원 → 범위 클램프
+    speed = max(0.5, min(2.0, speed))
+    pts_factor = 1.0 / speed
+    # atempo는 연속 적용으로 넓은 범위 지원 (0.5~2.0 단일 적용으로 충분)
+    cmd = [
+        "ffmpeg", "-y", "-i", str(video),
+        "-filter_complex",
+        f"[0:v]setpts={pts_factor:.4f}*PTS[v];[0:a]atempo={speed:.4f}[a]",
+        "-map", "[v]", "-map", "[a]",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
         str(output),
     ]
     proc = await asyncio.create_subprocess_exec(

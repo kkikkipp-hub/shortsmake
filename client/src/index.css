@@ -1,3 +1,23 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Pretendard Variable', -apple-system, sans-serif; -webkit-font-smoothing: antialiased; background: #f8f9fa; }
 input, button, select, textarea { font-family: inherit; }
+
+/* 모바일 대응 */
+@media (max-width: 480px) {
+  /* 숫자 입력 화살표 제거 (모바일 터치 오인 방지) */
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  /* 비율 선택 버튼 그리드 — 모바일에서 2열 */
+  .aspect-grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* 효과 프리셋 — 3열 */
+  .fx-grid { grid-template-columns: 1fr 1fr 1fr !important; }
+
+  /* 자막 스타일 그리드 — 2열 */
+  .style-grid { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* 터치 장치에서 버튼 최소 터치 영역 */
+@media (pointer: coarse) {
+  button { min-height: 40px; }
+}
