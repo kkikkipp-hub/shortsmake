@@ -63,5 +63,14 @@ export function useApi() {
 
     getOutputs: (jobId: string) =>
       api.get(`/jobs/${jobId}/outputs`).then(r => r.data),
+
+    generatePreview: (jobId: string, segId: string, config: any) =>
+      api.post(`/jobs/${jobId}/segments/${segId}/preview`, config).then(r => r.data),
+
+    uploadVideo: (jobId: string, file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api.post(`/jobs/${jobId}/upload`, form).then(r => r.data)
+    },
   }
 }
