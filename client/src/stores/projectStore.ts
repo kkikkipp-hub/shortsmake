@@ -13,6 +13,11 @@ interface ProjectState {
   progress: WsMessage | null
   loading: boolean
   error: string | null
+  // 제품 쇼츠 모드
+  productMode: boolean
+  openaiApiKey: string
+  productHint: string
+  removeHardcodedSubs: boolean
 
   setStep: (step: Step) => void
   setJobId: (id: string) => void
@@ -26,6 +31,10 @@ interface ProjectState {
   setProgress: (msg: WsMessage) => void
   setLoading: (v: boolean) => void
   setError: (e: string | null) => void
+  setProductMode: (v: boolean) => void
+  setOpenaiApiKey: (v: string) => void
+  setProductHint: (v: string) => void
+  setRemoveHardcodedSubs: (v: boolean) => void
   reset: () => void
 }
 
@@ -41,6 +50,10 @@ const initial = {
   progress: null as WsMessage | null,
   loading: false,
   error: null as string | null,
+  productMode: false,
+  openaiApiKey: '',
+  productHint: '',
+  removeHardcodedSubs: false,
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -65,5 +78,9 @@ export const useProjectStore = create<ProjectState>((set) => ({
   setProgress: (progress) => set({ progress }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+  setProductMode: (productMode) => set({ productMode }),
+  setOpenaiApiKey: (openaiApiKey) => set({ openaiApiKey }),
+  setProductHint: (productHint) => set({ productHint }),
+  setRemoveHardcodedSubs: (removeHardcodedSubs) => set({ removeHardcodedSubs }),
   reset: () => set(initial),
 }))

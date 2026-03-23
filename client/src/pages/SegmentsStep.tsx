@@ -10,14 +10,89 @@ const REASON_LABEL: Record<string, string> = {
   full_video: '전체 영상',
 }
 
+const REASON_LABEL_PRODUCT: Record<string, string> = {
+  product_highlight: '제품 하이라이트',
+}
+
 export default function SegmentsStep() {
-  const { jobId, segments, selectedSegments, setSegments, toggleSegment, setStep, setError } = useProjectStore()
+  const {
+    jobId, segments, selectedSegments, setSegments, toggleSegment, setStep, setError, setSubtitles,
+    productMode, openaiApiKey, productHint, removeHardcodedSubs,
+  } = useProjectStore()
   const [duration, setDuration] = useState(30)
   const [maxCount, setMaxCount] = useState(5)
   const [analyzing, setAnalyzing] = useState(false)
+  const [removingSubtitles, setRemovingSubtitles] = useState(false)
+  const [removeMode, setRemoveMode] = useState<'fast' | 'quality'>('fast')
   const [previewId, setPreviewId] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const api = useApi()
+
+  async function startRemoveSubtitles() {
+    if (!jobId) return
+    setRemovingSubtitles(true)
+    setError(null)
+    try {
+      await api.removeSubtitles(jobId, removeMode)
+      // polling
+      let retries = 0
+      while (retries < 300) {
+        await new Promise(r => setTimeout(r, 3000))
+        const data = await api.getJob(jobId)
+        if (data.subtitle_removal === 'done') break
+        if (data.subtitle_removal === 'failed') {
+          setError(data.error || '자막 제거 실패')
+          return
+        }
+        retries++
+      }
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setRemovingSubtitles(false)
+    }
+  }
+
+  async function startVisualAnalysis() {
+    if (!jobId || !openaiApiKey) return
+    setAnalyzing(true)
+    setError(null)
+    try {
+      await api.analyzeVisual(jobId, {
+        openai_api_key: openaiApiKey,
+        frame_interval: 5,
+        segment_duration: duration,
+        max_segments: maxCount,
+        product_hint: productHint,
+      })
+      // polling
+      let retries = 0
+      while (retries < 300) {
+        await new Promise(r => setTimeout(r, 3000))
+        const data = await api.getJob(jobId)
+        if (data.segments?.length) {
+          setSegments(data.segments)
+          // 비전 자막도 로드
+          for (const seg of data.segments) {
+            try {
+              const subs = await api.getVisionSubtitles(jobId, seg.id)
+              if (subs?.length) setSubtitles(seg.id, subs)
+            } catch {}
+          }
+          break
+        }
+        if (data.status === 'failed') {
+          setError(data.error || '비전 분석 실패')
+          return
+        }
+        retries++
+      }
+    } catch (e: any) {
+      setError(e.response?.data?.detail || e.message)
+    } finally {
+      setAnalyzing(false)
+    }
+  }
 
   async function startAnalysis() {
     if (!jobId) return
@@ -92,15 +167,64 @@ export default function SegmentsStep() {
             style={{ border: '1.5px solid #e5e8eb', borderRadius: 8, padding: '8px 12px', fontSize: 13, width: 80 }}
           />
         </div>
-        <button onClick={startAnalysis} disabled={analyzing} style={{
-          background: analyzing ? '#c9deff' : '#3182f6',
-          color: '#fff', border: 'none', borderRadius: 10,
-          padding: '10px 20px', fontSize: 14, fontWeight: 700,
-          cursor: analyzing ? 'not-allowed' : 'pointer',
-        }}>
-          {analyzing ? '분석 중...' : '🔍 AI 분석 시작'}
-        </button>
+        {productMode ? (
+          <button onClick={startVisualAnalysis} disabled={analyzing || !openaiApiKey} style={{
+            background: analyzing ? '#c9deff' : !openaiApiKey ? '#e5e8eb' : '#7c3aed',
+            color: '#fff', border: 'none', borderRadius: 10,
+            padding: '10px 20px', fontSize: 14, fontWeight: 700,
+            cursor: (analyzing || !openaiApiKey) ? 'not-allowed' : 'pointer',
+          }}>
+            {analyzing ? '비전 분석 중...' : '👁 비전 AI 분석'}
+          </button>
+        ) : (
+          <button onClick={startAnalysis} disabled={analyzing} style={{
+            background: analyzing ? '#c9deff' : '#3182f6',
+            color: '#fff', border: 'none', borderRadius: 10,
+            padding: '10px 20px', fontSize: 14, fontWeight: 700,
+            cursor: analyzing ? 'not-allowed' : 'pointer',
+          }}>
+            {analyzing ? '분석 중...' : '🔍 AI 분석 시작'}
+          </button>
+        )}
       </div>
+
+      {/* 제품 모드: 자막 제거 */}
+      {productMode && removeHardcodedSubs && (
+        <div style={{
+          background: '#fdf4ff', borderRadius: 14, padding: 20,
+          border: '1px solid #d8b4fe', marginBottom: 20,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#6b21a8', marginBottom: 12 }}>
+            🧹 번인 자막 제거
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['fast', 'quality'] as const).map(m => (
+                <button key={m} onClick={() => setRemoveMode(m)} style={{
+                  padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  border: removeMode === m ? '2px solid #7c3aed' : '2px solid #e5e8eb',
+                  background: removeMode === m ? '#ede9fe' : '#fff',
+                  color: removeMode === m ? '#7c3aed' : '#4e5968',
+                  cursor: 'pointer',
+                }}>
+                  {m === 'fast' ? '⚡ 빠른 제거' : '✨ 고품질 제거'}
+                </button>
+              ))}
+            </div>
+            <span style={{ fontSize: 12, color: '#8b95a1' }}>
+              {removeMode === 'fast' ? 'FFmpeg 필터 (빠름, 흐릿할 수 있음)' : 'OpenCV 인페인팅 (느림, 고품질 — CPU 기준 5분 영상 약 10~20분)'}
+            </span>
+            <button onClick={startRemoveSubtitles} disabled={removingSubtitles} style={{
+              background: removingSubtitles ? '#c9d0d7' : '#7c3aed',
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '9px 18px', fontSize: 13, fontWeight: 700,
+              cursor: removingSubtitles ? 'not-allowed' : 'pointer',
+            }}>
+              {removingSubtitles ? '제거 중...' : '자막 제거 시작'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <ProgressBar />
 
@@ -155,7 +279,7 @@ export default function SegmentsStep() {
                         점수 {(seg.score * 100).toFixed(0)}
                       </span>
                       <span style={{ fontSize: 11, color: '#8b95a1', background: '#f2f4f6', padding: '2px 8px', borderRadius: 6 }}>
-                        {REASON_LABEL[seg.reason] || seg.reason}
+                        {REASON_LABEL[seg.reason] || REASON_LABEL_PRODUCT[seg.reason] || seg.reason}
                       </span>
                     </div>
                     <div style={{ fontSize: 13, color: '#4e5968' }}>

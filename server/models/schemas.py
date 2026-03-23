@@ -148,6 +148,18 @@ class RenderRequest(BaseModel):
     segment_ids: list[str]
 
 
+class SubtitleRemoveRequest(BaseModel):
+    mode: str = "fast"  # fast (FFmpeg delogo) | quality (OpenCV TELEA)
+
+
+class VisualAnalyzeRequest(BaseModel):
+    openai_api_key: str
+    frame_interval: int = 5          # 프레임 추출 간격 (초)
+    segment_duration: int = 30       # 구간 길이 (초)
+    max_segments: int = 5
+    product_hint: str = ""           # 제품 힌트 (선택)
+
+
 class JobInfo(BaseModel):
     id: str
     status: JobStatus
