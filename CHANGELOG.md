@@ -2,6 +2,19 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.9.0] - 2026-03-23
+
+### Added
+- **SRT 자막 가져오기/내보내기**: SubtitleStep 툴바에 "⬇ SRT 내보내기" + "⬆ SRT 가져오기" 버튼
+  - 내보내기: 현재 자막을 `{segId}_subtitle.srt` 파일로 다운로드
+  - 가져오기: SRT 파일 선택 후 현재 구간 자막 전체 교체 (타임스탬프 파싱)
+- **커스텀 효과 프리셋**: EffectsStep에 "💾 나만의 프리셋" 섹션 — 현재 설정을 이름 붙여 저장 (localStorage)
+  - 저장된 프리셋 목록에서 적용/삭제 가능
+  - trim_start/trim_end는 프리셋에 포함되지 않음 (구간별 유지)
+- **렌더링 로그 뷰**: RenderStep 최종 렌더링 버튼 아래에 실시간 로그 패널
+  - 타임스탬프 + 진행 메시지 표시, 자동 스크롤
+  - 접기/펼치기 토글, 오류는 빨간색/완료는 초록색 강조
+
 ## [0.1.8.0] - 2026-03-23
 
 ### Added
