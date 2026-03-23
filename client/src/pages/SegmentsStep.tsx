@@ -247,8 +247,8 @@ export default function SegmentsStep() {
             {segments.map(seg => {
               const selected = selectedSegments.includes(seg.id)
               return (
+                <div key={seg.id}>
                 <div
-                  key={seg.id}
                   onClick={() => toggleSegment(seg.id)}
                   style={{
                     display: 'flex', gap: 14, alignItems: 'center',
@@ -327,6 +327,7 @@ export default function SegmentsStep() {
                     onEnded={() => setPreviewId(null)}
                   />
                 )}
+                </div>
               )
             })}
           </div>
