@@ -1,6 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 from enum import Enum
+from urllib.parse import urlparse
 
 
 class JobStatus(str, Enum):
@@ -18,6 +19,16 @@ class JobStatus(str, Enum):
 
 class DownloadRequest(BaseModel):
     url: str
+
+    @field_validator("url")
+    @classmethod
+    def validate_url_scheme(cls, v: str) -> str:
+        parsed = urlparse(v)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(
+                f"허용되지 않는 URL 스킴: '{parsed.scheme}' (http/https만 허용)"
+            )
+        return v
 
 
 class AnalyzeRequest(BaseModel):
