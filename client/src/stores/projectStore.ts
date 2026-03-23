@@ -18,6 +18,7 @@ interface ProjectState {
   setJobId: (id: string) => void
   setJob: (job: Job) => void
   setSegments: (s: Segment[]) => void
+  setSelectedSegments: (ids: string[]) => void
   toggleSegment: (id: string) => void
   setSubtitles: (segId: string, subs: SubtitleEntry[]) => void
   setEffects: (segId: string, config: EffectsConfig) => void
@@ -49,6 +50,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   setJobId: (id) => set({ jobId: id }),
   setJob: (job) => set({ job }),
   setSegments: (segments) => set({ segments }),
+  setSelectedSegments: (selectedSegments) => set({ selectedSegments }),
   toggleSegment: (id) =>
     set((s) => ({
       selectedSegments: s.selectedSegments.includes(id)
