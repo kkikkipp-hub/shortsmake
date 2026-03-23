@@ -2,6 +2,22 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.6.0] - 2026-03-23
+
+### Added
+- **워터마크 삽입**: EffectsStep에 워터마크 텍스트 입력 + 4방향 위치 선택 UI (좌상/우상/좌하/우하)
+  - FFmpeg `drawtext` 필터 — 흰 글자 + 반투명 그림자, 영상 너비 기준 자동 폰트 크기
+  - `EffectsConfig`에 `watermark`, `watermark_position` 필드 추가
+- **자막 자동 줄바꿈**: SubtitleStep에 "↩ 자동 줄바꿈" 버튼 — 18자 초과 자막을 어절 단위로 분리
+  - 줄 수에 비례하여 타임스탬프를 자동 분배
+- **에러 UI 개선**: 단계별 맥락 힌트 + 재시도/처음으로 버튼
+  - App.tsx 헤더 sticky 고정 + "↩ 처음으로" 리셋 버튼 (confirm 다이얼로그)
+  - 에러 배너 리디자인: 에러 메시지 + 단계별 힌트 텍스트 + 액션 버튼 2종
+
+### Changed
+- `EffectsConfig` 스키마에 `watermark: str = ""`, `watermark_position: str = "bottom_right"` 필드 추가
+- 렌더 파이프라인 4.5단계 추가 — watermark ≠ "" 시 `_apply_watermark()` 적용 (자막 번인 후)
+
 ## [0.1.5.0] - 2026-03-23
 
 ### Added
