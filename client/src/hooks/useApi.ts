@@ -77,7 +77,6 @@ export function useApi() {
       api.post(`/jobs/${jobId}/remove_subtitles`, { mode }).then(r => r.data),
 
     analyzeVisual: (jobId: string, params: {
-      openai_api_key: string
       frame_interval?: number
       segment_duration?: number
       max_segments?: number

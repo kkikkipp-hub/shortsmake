@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import WORKSPACE_DIR, API_KEY
+from config import WORKSPACE_DIR, API_KEY, OPENAI_API_KEY
 from models.schemas import (
     DownloadRequest, AnalyzeRequest, SegmentSelectRequest,
     SubtitleData, TTSRequest, EffectsConfig, RenderRequest,
@@ -257,7 +257,7 @@ async def _bg_analyze_visual(job_id: str, req: VisualAnalyzeRequest):
     try:
         segments, subtitles_map = await analyze_product_video(
             job_id=job_id,
-            api_key=req.openai_api_key,
+            api_key=OPENAI_API_KEY,
             frame_interval=req.frame_interval,
             segment_duration=req.segment_duration,
             max_segments=req.max_segments,

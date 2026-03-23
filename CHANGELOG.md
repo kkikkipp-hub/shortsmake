@@ -2,6 +2,14 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+
+## [0.1.11.1] - 2026-03-23
+
+### Changed
+- **OpenAI API 키 UI 제거**: 제품 쇼츠 모드에서 API 키 입력창 제거, `server/.env`의 `OPENAI_API_KEY` 환경변수에서 자동 로드
+  - `VisualAnalyzeRequest` 스키마에서 `openai_api_key` 필드 제거
+  - 프론트엔드 store(`openaiApiKey` 상태), InputStep UI, SegmentsStep 의존성 모두 제거
+
 ## [0.1.11.0] - 2026-03-23
 
 ### Added

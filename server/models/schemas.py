@@ -159,7 +159,6 @@ class SubtitleRemoveRequest(BaseModel):
 
 
 class VisualAnalyzeRequest(BaseModel):
-    openai_api_key: str
     frame_interval: int = 5          # 프레임 추출 간격 (초)
     segment_duration: int = 30       # 구간 길이 (초)
     max_segments: int = 5

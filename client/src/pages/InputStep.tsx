@@ -35,8 +35,8 @@ export default function InputStep() {
     job, loading,
     setJobId, setJob, setStep, setSegments, setSelectedSegments, setSubtitles,
     setLoading, setError,
-    productMode, openaiApiKey, productHint, removeHardcodedSubs,
-    setProductMode, setOpenaiApiKey, setProductHint, setRemoveHardcodedSubs,
+    productMode, productHint, removeHardcodedSubs,
+    setProductMode, setProductHint, setRemoveHardcodedSubs,
   } = useProjectStore()
   const api = useApi()
 
@@ -320,22 +320,6 @@ export default function InputStep() {
 
           {productMode && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed', display: 'block', marginBottom: 4 }}>
-                  OpenAI API Key *
-                </label>
-                <input
-                  type="password"
-                  value={openaiApiKey}
-                  onChange={e => setOpenaiApiKey(e.target.value)}
-                  placeholder="sk-..."
-                  style={{
-                    width: '100%', border: '1px solid #d8b4fe', borderRadius: 8,
-                    padding: '8px 12px', fontSize: 13, outline: 'none',
-                    boxSizing: 'border-box', background: '#fff',
-                  }}
-                />
-              </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed', display: 'block', marginBottom: 4 }}>
                   제품 힌트 (선택)

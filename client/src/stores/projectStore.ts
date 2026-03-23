@@ -16,7 +16,6 @@ interface ProjectState {
   error: string | null
   // 제품 쇼츠 모드
   productMode: boolean
-  openaiApiKey: string
   productHint: string
   removeHardcodedSubs: boolean
 
@@ -34,7 +33,6 @@ interface ProjectState {
   setLoading: (v: boolean) => void
   setError: (e: string | null) => void
   setProductMode: (v: boolean) => void
-  setOpenaiApiKey: (v: string) => void
   setProductHint: (v: string) => void
   setRemoveHardcodedSubs: (v: boolean) => void
   reset: () => void
@@ -54,7 +52,6 @@ const initial = {
   loading: false,
   error: null as string | null,
   productMode: false,
-  openaiApiKey: '',
   productHint: '',
   removeHardcodedSubs: false,
 }
@@ -93,7 +90,6 @@ export const useProjectStore = create<ProjectState>((set) => ({
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   setProductMode: (productMode) => set({ productMode }),
-  setOpenaiApiKey: (openaiApiKey) => set({ openaiApiKey }),
   setProductHint: (productHint) => set({ productHint }),
   setRemoveHardcodedSubs: (removeHardcodedSubs) => set({ removeHardcodedSubs }),
   reset: () => set(initial),

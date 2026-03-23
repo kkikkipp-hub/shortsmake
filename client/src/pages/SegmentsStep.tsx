@@ -17,7 +17,7 @@ const REASON_LABEL_PRODUCT: Record<string, string> = {
 export default function SegmentsStep() {
   const {
     jobId, segments, selectedSegments, setSegments, toggleSegment, setStep, setError, setSubtitles,
-    productMode, openaiApiKey, productHint, removeHardcodedSubs,
+    productMode, productHint, removeHardcodedSubs,
   } = useProjectStore()
   const [duration, setDuration] = useState(30)
   const [maxCount, setMaxCount] = useState(5)
@@ -54,12 +54,11 @@ export default function SegmentsStep() {
   }
 
   async function startVisualAnalysis() {
-    if (!jobId || !openaiApiKey) return
+    if (!jobId) return
     setAnalyzing(true)
     setError(null)
     try {
       await api.analyzeVisual(jobId, {
-        openai_api_key: openaiApiKey,
         frame_interval: 5,
         segment_duration: duration,
         max_segments: maxCount,
@@ -168,11 +167,11 @@ export default function SegmentsStep() {
           />
         </div>
         {productMode ? (
-          <button onClick={startVisualAnalysis} disabled={analyzing || !openaiApiKey} style={{
-            background: analyzing ? '#c9deff' : !openaiApiKey ? '#e5e8eb' : '#7c3aed',
+          <button onClick={startVisualAnalysis} disabled={analyzing} style={{
+            background: analyzing ? '#c9deff' : '#7c3aed',
             color: '#fff', border: 'none', borderRadius: 10,
             padding: '10px 20px', fontSize: 14, fontWeight: 700,
-            cursor: (analyzing || !openaiApiKey) ? 'not-allowed' : 'pointer',
+            cursor: analyzing ? 'not-allowed' : 'pointer',
           }}>
             {analyzing ? '비전 분석 중...' : '👁 비전 AI 분석'}
           </button>
