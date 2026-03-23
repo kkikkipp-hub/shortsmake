@@ -1,12 +1,14 @@
 import asyncio
+import io
 import json
 import uuid
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import WORKSPACE_DIR, API_KEY
@@ -399,3 +401,39 @@ async def list_outputs(job_id: str):
         }
         for f in sorted(out_dir.glob("*_final.mp4"))
     ]
+
+
+@app.get("/api/jobs/{job_id}/outputs/zip")
+async def download_outputs_zip(job_id: str):
+    """완성된 모든 영상을 ZIP으로 일괄 다운로드"""
+    out_dir = WORKSPACE_DIR / job_id / "output"
+    if not out_dir.exists():
+        raise HTTPException(404, "출력 파일이 없습니다")
+    files = sorted(out_dir.glob("*_final.mp4"))
+    if not files:
+        raise HTTPException(404, "렌더링된 영상이 없습니다")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in files:
+            zf.write(f, f.name)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="shortsmake_{job_id[:8]}.zip"'},
+    )
+
+
+@app.post("/api/jobs/{job_id}/bgm")
+async def upload_bgm(job_id: str, file: UploadFile = File(...)):
+    """BGM 파일 업로드 (MP3/AAC/WAV)"""
+    job_dir = WORKSPACE_DIR / job_id
+    if not job_dir.exists():
+        raise HTTPException(404, "job not found")
+    suffix = Path(file.filename or "bgm.mp3").suffix.lower() or ".mp3"
+    bgm_path = job_dir / f"bgm{suffix}"
+    content = await file.read()
+    bgm_path.write_bytes(content)
+    return {"status": "ok", "filename": bgm_path.name}

@@ -85,16 +85,32 @@ async def render_segment(job_id: str, segment_id: str,
 
     # 5) TTS 오디오 믹싱 (+ 노이즈 감소)
     tts_file = job_dir / "tts" / f"{segment_id}_tts.mp3"
-    output_path = out_dir / f"{segment_id}_final.mp4"
+    tts_output = out_dir / f"{segment_id}_tts_mix.mp4"
     if tts_file.exists():
-        await _mix_audio(current, tts_file, output_path,
+        await _mix_audio(current, tts_file, tts_output,
                          denoise=effects_config.denoise_audio)
-        await progress_manager.send(job_id, "render", 90, "TTS 오디오 합성 완료")
+        await progress_manager.send(job_id, "render", 88, "TTS 오디오 합성 완료")
+        current = tts_output
     else:
         if effects_config.denoise_audio:
-            await _apply_audio_denoise(current, output_path)
-        else:
-            await _copy_file(current, output_path)
+            denoised = out_dir / f"{segment_id}_denoised.mp4"
+            await _apply_audio_denoise(current, denoised)
+            current = denoised
+
+    # 6) BGM 믹싱 (job_dir에 bgm.* 파일이 있으면)
+    bgm_files = list(job_dir.glob("bgm.*"))
+    output_path = out_dir / f"{segment_id}_final.mp4"
+    if bgm_files:
+        bgm_file = bgm_files[0]
+        await _mix_bgm(current, bgm_file, output_path)
+        await progress_manager.send(job_id, "render", 95, "BGM 믹싱 완료")
+    else:
+        await _copy_file(current, output_path)
+
+    # 임시 파일 정리
+    for tmp in [tts_output, out_dir / f"{segment_id}_denoised.mp4"]:
+        if tmp.exists() and tmp != output_path:
+            tmp.unlink(missing_ok=True)
 
     await progress_manager.send(job_id, "render", 100,
                                 f"{segment_id} 렌더링 완료!")
@@ -451,6 +467,28 @@ async def _mix_audio(video: Path, tts_audio: Path, output: Path,
     )
     cmd = [
         "ffmpeg", "-y", "-i", str(video), "-i", str(tts_audio),
+        "-filter_complex", filter_complex,
+        "-map", "0:v", "-map", "[aout]",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-shortest",
+        str(output),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+    )
+    await proc.wait()
+
+
+async def _mix_bgm(video: Path, bgm: Path, output: Path, bgm_volume: float = 0.08):
+    """BGM 파일을 영상 오디오에 낮은 볼륨으로 믹싱 (루프 반복, 영상 길이에 맞춤)"""
+    filter_complex = (
+        f"[1:a]volume={bgm_volume}[bgm];"
+        f"[0:a][bgm]amix=inputs=2:duration=first:normalize=0[aout]"
+    )
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(video),
+        "-stream_loop", "-1", "-i", str(bgm),
         "-filter_complex", filter_complex,
         "-map", "0:v", "-map", "[aout]",
         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",

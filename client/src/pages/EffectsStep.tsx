@@ -59,6 +59,33 @@ const COLOR_PRESETS = [
   { key: 'vintage',   label: '빈티지',     emoji: '📷', desc: '레트로 필름' },
 ]
 
+const SUBTITLE_PRESETS = [
+  {
+    label: '기본',       emoji: '⬜', desc: '흰 글자 검정 외곽선',
+    style: { font_size: 44, color: '#FFFFFF', outline_color: '#000000', outline_width: 3, position: 'bottom' as const, bg_opacity: 0.6 },
+  },
+  {
+    label: 'TikTok',    emoji: '🟡', desc: '노란 글자 임팩트',
+    style: { font_size: 52, color: '#FFE600', outline_color: '#000000', outline_width: 4, position: 'bottom' as const, bg_opacity: 0.6 },
+  },
+  {
+    label: '시네마',     emoji: '🎬', desc: '가는 흰 글자 중앙',
+    style: { font_size: 36, color: '#FFFFFF', outline_color: '#000000', outline_width: 2, position: 'center' as const, bg_opacity: 0.6 },
+  },
+  {
+    label: 'Bold',      emoji: '💪', desc: '크고 굵은 외곽선',
+    style: { font_size: 60, color: '#FFFFFF', outline_color: '#000000', outline_width: 6, position: 'bottom' as const, bg_opacity: 0.6 },
+  },
+  {
+    label: '미니멀',     emoji: '✨', desc: '얇고 깔끔하게',
+    style: { font_size: 38, color: '#FFFFFF', outline_color: '#333333', outline_width: 1, position: 'bottom' as const, bg_opacity: 0.6 },
+  },
+  {
+    label: '배경박스',   emoji: '📦', desc: '반투명 박스 배경',
+    style: { font_size: 42, color: '#FFFFFF', outline_color: '#000000', outline_width: 1, position: 'bottom' as const, bg_color: '#000000', bg_opacity: 0.55 },
+  },
+]
+
 const DEFAULT_STYLE = {
   font_name: 'GmarketSansTTFBold',
   font_size: 44, color: '#FFFFFF', outline_color: '#000000',
@@ -255,6 +282,34 @@ export default function EffectsStep() {
       {/* 자막 스타일 */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 20 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>자막 스타일</h3>
+
+        {/* 자막 프리셋 */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', marginBottom: 8 }}>빠른 프리셋</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+            {SUBTITLE_PRESETS.map((p, i) => {
+              const active = config.subtitle_style.font_size === p.style.font_size
+                && config.subtitle_style.color === p.style.color
+                && config.subtitle_style.outline_width === p.style.outline_width
+              return (
+                <button key={i}
+                  onClick={() => updateConfig({ subtitle_style: { ...config.subtitle_style, font_name: 'GmarketSansTTFBold', ...p.style } })}
+                  title={p.desc}
+                  style={{
+                    padding: '8px 4px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+                    border: active ? '2px solid #6366f1' : '2px solid #e5e8eb',
+                    background: active ? '#f0f0ff' : '#fff',
+                    color: active ? '#6366f1' : '#4e5968',
+                    cursor: 'pointer', textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: 18, marginBottom: 2 }}>{p.emoji}</div>
+                  <div>{p.label}</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
 
         {/* 폰트 정보 */}
         <div style={{
