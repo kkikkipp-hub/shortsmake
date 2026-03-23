@@ -3,6 +3,20 @@
 All notable changes to ShortsMake will be documented in this file.
 
 
+## [0.1.12.0] - 2026-03-23
+
+### Fixed
+- **FFmpeg 타임아웃 전파**: `vision_analyzer`, `subtitle_remover`의 모든 FFmpeg 호출에 `_run_ffmpeg(timeout=300)` 적용 (effects_engine은 기존 완료)
+- **asyncio.gather return_exceptions=True**: 배치 렌더링에서 첫 번째 세그먼트 실패 시 나머지 태스크가 고아가 되는 문제 수정
+- **AsyncOpenAI antipattern**: `loop.run_in_executor(lambda: asyncio.run(...))` 패턴 제거 → `await client.chat.completions.create(...)` 직접 호출
+- **EasyOCR 모듈 레벨 싱글턴**: `_get_ocr_reader()` 팩토리로 중복 모델 로드 방지
+- **파일 업로드 스트리밍**: 대용량 영상 업로드 시 OOM 방지 — `file.read()` → 64KB 청크 스트리밍
+- **임시 파일 정리 누락**: `_remove_quality` 예외 시 GB 단위 JPEG 프레임 누수 → `try/finally + shutil.rmtree` 적용
+- **frame_dir.rmdir() OSError**: 빈 디렉터리가 아닐 경우 실패 → `shutil.rmtree` 교체
+- **폰트 파일명 path traversal**: `../` 포함 파일명으로 FONTS_DIR 외부 쓰기 가능한 문제 → `re.sub` 세니타이즈 적용
+- **FFmpeg drawtext 주입 취약점**: 썸네일 title에 `\`, `[`, `]`, `;`, `%` 미이스케이프 → FFmpeg filter syntax 기준 완전 이스케이프
+- **Dead code 제거**: `useApi.ts`의 미사용 `uploadFont` 전역 함수 제거
+
 ## [0.1.11.1] - 2026-03-23
 
 ### Changed
