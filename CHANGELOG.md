@@ -2,6 +2,26 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.10.0] - 2026-03-23
+
+### Added
+- **제품 쇼츠 모드 (P8)**: InputStep에 "🛍️ 제품 쇼츠 모드" 토글 섹션
+  - OpenAI API 키 입력 (비밀번호 타입)
+  - 제품 힌트 텍스트 입력 (예: "삼성 갤럭시 S25")
+  - 번인 자막 제거 체크박스
+- **GPT-4o 비전 분석**: `POST /api/jobs/{id}/analyze_visual` — 오디오 없는 영상도 분석
+  - 5초 간격 프레임 추출 → GPT-4o vision으로 하이라이트 구간 선정
+  - 각 구간별 자막 스크립트 자동 생성 (15자 이내)
+  - `detail: low` 모드로 비용 절감 (약 1,500 프레임/1시간 영상 기준 $0.10~0.15)
+- **번인 자막 제거**: `POST /api/jobs/{id}/remove_subtitles` — 두 가지 모드
+  - `fast`: FFmpeg delogo 필터 (실시간, 흐릿할 수 있음)
+  - `quality`: OpenCV TELEA 인페인팅 (CPU 기준 5분 영상 약 10~20분, 고품질)
+  - EasyOCR로 자막 영역 자동 감지 후 고정 마스크 적용
+- **SegmentsStep 제품 모드 UI**: 제품 모드 활성화 시
+  - 번인 자막 제거 패널 (모드 선택 + 제거 시작 버튼)
+  - 오디오 분석 버튼 대신 "👁 비전 AI 분석" 버튼으로 전환
+  - 구간 이유 레이블에 `product_highlight` 추가
+
 ## [0.1.9.0] - 2026-03-23
 
 ### Added

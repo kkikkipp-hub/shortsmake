@@ -16,6 +16,7 @@ from models.schemas import (
     DownloadRequest, AnalyzeRequest, SegmentSelectRequest,
     SubtitleData, TTSRequest, EffectsConfig, RenderRequest,
     RewriteRequest, JobInfo, JobStatus, Segment,
+    SubtitleRemoveRequest, VisualAnalyzeRequest,
 )
 from utils.progress import progress_manager
 
@@ -218,6 +219,72 @@ async def _bg_download(job_id: str, url: str):
         jobs[job_id]["error"] = str(e)
         _set_status(job_id, JobStatus.failed)
         await progress_manager.send(job_id, "download", -1, f"오류: {e}")
+
+
+# ── 제품 모드: 자막 제거 ──────────────────────────────────────────────
+@app.post("/api/jobs/{job_id}/remove_subtitles")
+async def remove_subtitles(job_id: str, req: SubtitleRemoveRequest, bg: BackgroundTasks):
+    _get_job(job_id)
+    jobs[job_id]["subtitle_removal"] = "processing"
+    bg.add_task(_bg_remove_subtitles, job_id, req.mode)
+    return {"status": "processing", "mode": req.mode}
+
+
+async def _bg_remove_subtitles(job_id: str, mode: str):
+    from services.subtitle_remover import remove_subtitles as _remove
+    try:
+        output = await _remove(job_id, mode)
+        jobs[job_id]["subtitle_removal"] = "done"
+        jobs[job_id]["subtitle_removal_file"] = str(output)
+        await progress_manager.send(job_id, "subtitle_removal", 100, "자막 제거 완료!")
+    except Exception as e:
+        jobs[job_id]["subtitle_removal"] = "failed"
+        jobs[job_id]["error"] = str(e)
+        await progress_manager.send(job_id, "subtitle_removal", -1, f"자막 제거 오류: {e}")
+
+
+# ── 제품 모드: 비전 분석 ───────────────────────────────────────────────
+@app.post("/api/jobs/{job_id}/analyze_visual")
+async def analyze_visual(job_id: str, req: VisualAnalyzeRequest, bg: BackgroundTasks):
+    _get_job(job_id)
+    _set_status(job_id, JobStatus.analyzing)
+    bg.add_task(_bg_analyze_visual, job_id, req)
+    return {"status": "analyzing"}
+
+
+async def _bg_analyze_visual(job_id: str, req: VisualAnalyzeRequest):
+    from services.vision_analyzer import analyze_product_video
+    try:
+        segments, subtitles_map = await analyze_product_video(
+            job_id=job_id,
+            api_key=req.openai_api_key,
+            frame_interval=req.frame_interval,
+            segment_duration=req.segment_duration,
+            max_segments=req.max_segments,
+            product_hint=req.product_hint,
+        )
+        jobs[job_id]["segments"] = [s.model_dump() for s in segments]
+        jobs[job_id]["vision_subtitles"] = subtitles_map
+        _set_status(job_id, JobStatus.analyzed)
+    except Exception as e:
+        jobs[job_id]["error"] = str(e)
+        _set_status(job_id, JobStatus.failed)
+        await progress_manager.send(job_id, "analyze", -1, f"비전 분석 오류: {e}")
+
+
+# ── 제품 모드: 비전 자막 조회 ──────────────────────────────────────────
+@app.get("/api/jobs/{job_id}/vision_subtitles/{seg_id}")
+async def get_vision_subtitles(job_id: str, seg_id: str):
+    job = _get_job(job_id)
+    vision_subs = job.get("vision_subtitles") or {}
+    subs = vision_subs.get(seg_id, [])
+    # vision_subtitles.json 파일에서도 확인
+    if not subs:
+        vs_file = WORKSPACE_DIR / job_id / "vision_subtitles.json"
+        if vs_file.exists():
+            all_vs = json.loads(vs_file.read_text())
+            subs = all_vs.get(seg_id, [])
+    return subs
 
 
 # ── Step 2: 분석 ──────────────────────────────────────────────────────

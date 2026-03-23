@@ -72,5 +72,19 @@ export function useApi() {
       form.append('file', file)
       return api.post(`/jobs/${jobId}/upload`, form).then(r => r.data)
     },
+
+    removeSubtitles: (jobId: string, mode: 'fast' | 'quality' = 'fast') =>
+      api.post(`/jobs/${jobId}/remove_subtitles`, { mode }).then(r => r.data),
+
+    analyzeVisual: (jobId: string, params: {
+      openai_api_key: string
+      frame_interval?: number
+      segment_duration?: number
+      max_segments?: number
+      product_hint?: string
+    }) => api.post(`/jobs/${jobId}/analyze_visual`, params).then(r => r.data),
+
+    getVisionSubtitles: (jobId: string, segId: string) =>
+      api.get(`/jobs/${jobId}/vision_subtitles/${segId}`).then(r => r.data),
   }
 }
