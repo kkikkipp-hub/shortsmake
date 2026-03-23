@@ -40,6 +40,8 @@ export interface EffectsConfig {
   color_preset: string   // none | vivid | cinematic | warm | cool | bw | vintage
   denoise_audio: boolean
   speed: number          // 영상 속도 (0.5~2.0, 기본 1.0)
+  watermark: string      // 워터마크 텍스트 (빈 문자열이면 미적용)
+  watermark_position: string  // top_left|top_right|bottom_left|bottom_right
 }
 
 export interface Effect {

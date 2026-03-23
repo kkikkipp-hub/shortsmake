@@ -83,6 +83,50 @@ export default function SubtitleStep() {
     setSubtitles(activeSegId, filtered)
   }
 
+  function autoLineBreak() {
+    if (!activeSegId) return
+    const MAX_CHARS = 18
+    const result: typeof activeSubs = []
+    let id = Date.now()
+    for (const sub of activeSubs) {
+      const t = sub.text.trim()
+      if (t.length <= MAX_CHARS) {
+        result.push(sub)
+        continue
+      }
+      // 어절 단위로 분할
+      const words = t.split(' ')
+      let line = ''
+      const lines: string[] = []
+      for (const w of words) {
+        if ((line + (line ? ' ' : '') + w).length > MAX_CHARS && line) {
+          lines.push(line)
+          line = w
+        } else {
+          line = line ? `${line} ${w}` : w
+        }
+      }
+      if (line) lines.push(line)
+
+      // 2줄 이상이면 구간을 균등 분할
+      if (lines.length >= 2) {
+        const dur = sub.end - sub.start
+        const perLine = dur / lines.length
+        lines.forEach((ln, i) => {
+          result.push({
+            id: `split_${id++}`,
+            start: sub.start + i * perLine,
+            end: sub.start + (i + 1) * perLine,
+            text: ln,
+          })
+        })
+      } else {
+        result.push(sub)
+      }
+    }
+    setSubtitles(activeSegId, result)
+  }
+
   function addSub() {
     if (!activeSegId) return
     const last = activeSubs[activeSubs.length - 1]
@@ -210,7 +254,7 @@ export default function SubtitleStep() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
             <button onClick={addSub} style={{
               background: '#f2f4f6', border: 'none', borderRadius: 8,
               padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#4e5968', cursor: 'pointer',
@@ -219,6 +263,10 @@ export default function SubtitleStep() {
               background: '#fff0f0', border: '1px solid #fca5a5', borderRadius: 8,
               padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#dc2626', cursor: 'pointer',
             }}>🧹 필러 제거</button>
+            <button onClick={autoLineBreak} style={{
+              background: '#f0f7ff', border: '1px solid #93c5fd', borderRadius: 8,
+              padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#2563eb', cursor: 'pointer',
+            }} title="18자 초과 자막을 어절 단위로 분할">↩ 자동 줄바꿈</button>
           </div>
 
           {/* GPT 자막 리라이팅 */}

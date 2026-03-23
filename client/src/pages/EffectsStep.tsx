@@ -106,6 +106,8 @@ export default function EffectsStep() {
     color_preset: 'none',
     denoise_audio: false,
     speed: 1.0,
+    watermark: '',
+    watermark_position: 'bottom_right',
   }
 
   function updateConfig(partial: Partial<EffectsConfig>) {
@@ -438,6 +440,45 @@ export default function EffectsStep() {
             지마켓산스 볼드 · {config.subtitle_style.font_size}px
           </div>
         </div>
+      </div>
+
+      {/* 워터마크 */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 20 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>💧 워터마크</h3>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 6 }}>워터마크 텍스트</label>
+          <input
+            type="text"
+            value={config.watermark || ''}
+            onChange={e => updateConfig({ watermark: e.target.value })}
+            placeholder="예: @내채널, ShortsMake (빈칸이면 미적용)"
+            style={{ width: '100%', border: '1px solid #e5e8eb', borderRadius: 8, padding: '9px 12px', fontSize: 13, boxSizing: 'border-box' }}
+          />
+        </div>
+        {(config.watermark || '').length > 0 && (
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 6 }}>위치</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {[
+                { key: 'top_left',     label: '↖ 좌상단' },
+                { key: 'top_right',    label: '↗ 우상단' },
+                { key: 'bottom_left',  label: '↙ 좌하단' },
+                { key: 'bottom_right', label: '↘ 우하단' },
+              ].map(pos => (
+                <button key={pos.key}
+                  onClick={() => updateConfig({ watermark_position: pos.key })}
+                  style={{
+                    padding: '8px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    border: (config.watermark_position || 'bottom_right') === pos.key ? '2px solid #3182f6' : '1px solid #e5e8eb',
+                    background: (config.watermark_position || 'bottom_right') === pos.key ? '#ebf3ff' : '#fff',
+                    color: (config.watermark_position || 'bottom_right') === pos.key ? '#3182f6' : '#4e5968',
+                    cursor: 'pointer',
+                  }}
+                >{pos.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <button onClick={saveAndRender} style={{

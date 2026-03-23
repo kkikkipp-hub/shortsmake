@@ -91,6 +91,15 @@ async def render_segment(job_id: str, segment_id: str,
         current = sub_path
         await progress_manager.send(job_id, "render", 70, "자막 삽입 완료")
 
+    # 4.5) 워터마크 삽입
+    wm_text = (effects_config.watermark or "").strip()
+    if wm_text:
+        wm_path = seg_dir / f"{segment_id}_wm.mp4"
+        await _apply_watermark(current, wm_path, wm_text,
+                               effects_config.watermark_position or "bottom_right", w, h)
+        current = wm_path
+        await progress_manager.send(job_id, "render", 75, "워터마크 삽입 완료")
+
     # 5) TTS 오디오 믹싱 (+ 노이즈 감소)
     tts_file = job_dir / "tts" / f"{segment_id}_tts.mp3"
     tts_output = out_dir / f"{segment_id}_tts_mix.mp4"
@@ -479,6 +488,42 @@ async def _mix_audio(video: Path, tts_audio: Path, output: Path,
         "-map", "0:v", "-map", "[aout]",
         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
         "-shortest",
+        str(output),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+    )
+    await proc.wait()
+
+
+_WM_POSITION = {
+    "top_left":     "x=20:y=20",
+    "top_right":    "x=w-tw-20:y=20",
+    "bottom_left":  "x=20:y=h-th-20",
+    "bottom_right": "x=w-tw-20:y=h-th-20",
+}
+
+
+async def _apply_watermark(video: Path, output: Path, text: str,
+                            position: str, w: int, h: int):
+    """워터마크 텍스트 오버레이 (FFmpeg drawtext)"""
+    # 폰트 크기: 영상 너비의 ~2.5%
+    font_size = max(20, int(w * 0.025))
+    xy = _WM_POSITION.get(position, _WM_POSITION["bottom_right"])
+    # 텍스트 내 콜론/특수문자 이스케이프
+    safe_text = text.replace("'", "\\'").replace(":", "\\:")
+    drawtext = (
+        f"drawtext=text='{safe_text}':"
+        f"fontsize={font_size}:"
+        f"fontcolor=white@0.75:"
+        f"shadowcolor=black@0.6:shadowx=1:shadowy=1:"
+        f"{xy}"
+    )
+    cmd = [
+        "ffmpeg", "-y", "-i", str(video),
+        "-vf", drawtext,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-c:a", "copy",
         str(output),
     ]
     proc = await asyncio.create_subprocess_exec(
