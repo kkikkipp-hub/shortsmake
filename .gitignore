@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+client/dist/
+
+# 작업 파일
+server/workspace/
+*.mp4
+*.mp3
+*.wav
+
+# gstack
+.gstack/
+
+# 환경변수
+.env
+.env.local
