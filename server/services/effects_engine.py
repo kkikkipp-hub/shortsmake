@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from config import WORKSPACE_DIR, FFMPEG_THREADS, FONTS_DIR
 from utils.progress import progress_manager
+from utils.ffmpeg import run_ffmpeg as _run_ffmpeg
 from models.schemas import EffectsConfig, SubtitleStyle, ASPECT_RATIOS
 
 # 색상 프리셋 → FFmpeg vf 필터 문자열
@@ -138,6 +139,8 @@ async def render_segment(job_id: str, segment_id: str,
     return output_path
 
 
+
+
 async def _cut_segment(source: Path, start: float, end: float, output: Path):
     """구간 잘라내기 (스트림 복사로 빠르게, 다음 단계에서 재인코딩)"""
     duration = end - start
@@ -153,7 +156,7 @@ async def _cut_segment(source: Path, start: float, end: float, output: Path):
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def _convert_aspect(input_path: Path, output: Path, w: int, h: int):
@@ -180,7 +183,7 @@ async def _convert_aspect(input_path: Path, output: Path, w: int, h: int):
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def _apply_effects(input_path: Path, output: Path,
@@ -259,7 +262,7 @@ async def _apply_effects(input_path: Path, output: Path,
             proc = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
             )
-            await proc.wait()
+            await _run_ffmpeg(proc)
             temp.unlink(missing_ok=True)
         return
 
@@ -278,7 +281,7 @@ async def _apply_effects(input_path: Path, output: Path,
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def _apply_complex_effect(input_path: Path, output: Path,
@@ -342,7 +345,7 @@ async def _apply_complex_effect(input_path: Path, output: Path,
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def _burn_subtitles(input_path: Path, subs_json: Path,
@@ -373,7 +376,7 @@ async def _burn_subtitles(input_path: Path, subs_json: Path,
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 def _hex_to_ass(hex_color: str) -> str:
@@ -470,7 +473,7 @@ async def _apply_color_filter(input_path: Path, output: Path, vf: str):
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def _apply_audio_denoise(video: Path, output: Path):
@@ -484,7 +487,7 @@ async def _apply_audio_denoise(video: Path, output: Path):
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def _mix_audio(video: Path, tts_audio: Path, output: Path,
@@ -508,7 +511,7 @@ async def _mix_audio(video: Path, tts_audio: Path, output: Path,
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 _WM_POSITION = {
@@ -544,7 +547,7 @@ async def _apply_watermark(video: Path, output: Path, text: str,
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def _apply_speed(video: Path, output: Path, speed: float):
@@ -565,7 +568,7 @@ async def _apply_speed(video: Path, output: Path, speed: float):
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def _mix_bgm(video: Path, bgm: Path, output: Path, bgm_volume: float = 0.08):
@@ -587,7 +590,7 @@ async def _mix_bgm(video: Path, bgm: Path, output: Path, bgm_volume: float = 0.0
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def _copy_file(src: Path, dst: Path):
@@ -595,7 +598,7 @@ async def _copy_file(src: Path, dst: Path):
         "cp", str(src), str(dst),
         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
 
 async def render_preview(job_id: str, segment_id: str,
@@ -673,7 +676,7 @@ async def render_preview(job_id: str, segment_id: str,
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
 
     return preview_path
 
@@ -709,7 +712,15 @@ async def generate_thumbnail(job_id: str, segment_id: str,
 
     # 프레임 추출
     if title:
-        safe_title = title.replace("'", "\\'").replace(":", "\\:")
+        # FFmpeg drawtext 특수문자 이스케이프 (공식 문서 기준)
+        safe_title = (title
+                      .replace("\\", "\\\\")
+                      .replace("'", "\\'")
+                      .replace(":", "\\:")
+                      .replace("[", "\\[")
+                      .replace("]", "\\]")
+                      .replace(";", "\\;")
+                      .replace("%", "\\%"))[:100]
         vf = (
             f"select='eq(n,0)',scale=1080:-1,"
             f"drawtext=text='{safe_title}':fontsize=60:fontcolor=white:x=(w-tw)/2:y=h-th-60:"
@@ -729,5 +740,5 @@ async def generate_thumbnail(job_id: str, segment_id: str,
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc)
     return out

@@ -1,6 +1,7 @@
 import asyncio
 import io
 import json
+import re
 import uuid
 import zipfile
 from datetime import datetime
@@ -170,9 +171,14 @@ async def upload_video(job_id: str, file: UploadFile = File(...)):
     _set_status(job_id, JobStatus.downloading)
     await progress_manager.send(job_id, "download", 10, "파일 저장 중...")
 
-    # 청크 단위로 저장 (대용량 파일 지원)
-    content = await file.read()
-    video_path.write_bytes(content)
+    # 청크 스트리밍 저장 (대용량 파일 OOM 방지)
+    CHUNK = 64 * 1024  # 64KB
+    with video_path.open("wb") as f:
+        while True:
+            chunk = await file.read(CHUNK)
+            if not chunk:
+                break
+            f.write(chunk)
 
     # 메타데이터 추출 (FFprobe)
     import subprocess
@@ -411,6 +417,7 @@ async def _bg_tts(job_id: str, segment_id: str, voice: str, speed: float):
     try:
         await synthesize_segment_tts(job_id, segment_id, voice, speed)
     except Exception as e:
+        jobs[job_id]["error"] = str(e)
         await progress_manager.send(job_id, "tts", -1, f"TTS 오류: {e}")
 
 
@@ -454,7 +461,15 @@ async def _bg_render(job_id: str, segment_ids: list[str]):
             f"렌더링 중: {sid}",
             {"seg_id": sid, "seg_progress": 0},
         )
-        await render_segment(job_id, sid, config)
+        try:
+            await render_segment(job_id, sid, config)
+        except Exception as seg_err:
+            await progress_manager.send(
+                job_id, "render", -1,
+                f"{sid} 렌더링 오류: {seg_err}",
+                {"seg_id": sid, "seg_progress": -1},
+            )
+            raise
         completed += 1
         # 구간 완료 알림
         await progress_manager.send(
@@ -464,17 +479,22 @@ async def _bg_render(job_id: str, segment_ids: list[str]):
             {"seg_id": sid, "seg_progress": 100},
         )
 
-    try:
-        await progress_manager.send(job_id, "render", 0,
-                                    f"{total}개 구간 병렬 렌더링 시작...")
-        await asyncio.gather(*[render_one(sid) for sid in segment_ids])
+    await progress_manager.send(job_id, "render", 0,
+                                f"{total}개 구간 병렬 렌더링 시작...")
+    results = await asyncio.gather(
+        *[render_one(sid) for sid in segment_ids],
+        return_exceptions=True,
+    )
+    errors = [r for r in results if isinstance(r, BaseException)]
+    if errors:
+        jobs[job_id]["error"] = str(errors[0])
+        _set_status(job_id, JobStatus.failed)
+        await progress_manager.send(job_id, "render", -1,
+                                    f"렌더링 오류 ({len(errors)}/{total}개 구간 실패): {errors[0]}")
+    else:
         _set_status(job_id, JobStatus.completed)
         await progress_manager.send(job_id, "render", 100,
                                     f"모든 렌더링 완료! ({total}개)")
-    except Exception as e:
-        jobs[job_id]["error"] = str(e)
-        _set_status(job_id, JobStatus.failed)
-        await progress_manager.send(job_id, "render", -1, f"렌더링 오류: {e}")
 
 
 # ── 파일 제공 ─────────────────────────────────────────────────────────
@@ -601,7 +621,8 @@ async def upload_font(job_id: str, file: UploadFile = File(...)):
     if suffix not in (".ttf", ".otf"):
         raise HTTPException(400, "TTF 또는 OTF 파일만 허용됩니다")
     FONTS_DIR.mkdir(parents=True, exist_ok=True)
-    font_path = FONTS_DIR / (Path(file.filename or "font.ttf").stem + suffix)
+    safe_stem = re.sub(r"[^\w\-]", "_", Path(file.filename or "font").stem)[:64]
+    font_path = FONTS_DIR / (safe_stem + suffix)
     font_path.write_bytes(await file.read())
     return {"font_name": font_path.stem, "filename": font_path.name}
 

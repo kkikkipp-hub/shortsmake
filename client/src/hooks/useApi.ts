@@ -91,14 +91,6 @@ export function useApi() {
         params: { time_offset: timeOffset, title: title || '' },
       }).then(r => r.data),
 
-    uploadFont: (file: File) => {
-      const form = new FormData()
-      form.append('file', file)
-      // font upload is global, use any job context; we pass to /api/jobs/:id/font
-      // but since font is global, we use a dummy upload path and store in FONTS_DIR
-      return api.post('/fonts/upload', form).then(r => r.data)
-    },
-
     uploadFontForJob: (jobId: string, file: File) => {
       const form = new FormData()
       form.append('file', file)

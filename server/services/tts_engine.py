@@ -4,6 +4,7 @@ from pathlib import Path
 import edge_tts
 from config import WORKSPACE_DIR, DEFAULT_VOICE
 from utils.progress import progress_manager
+from utils.ffmpeg import run_ffmpeg as _run_ffmpeg
 from models.schemas import SubtitleEntry
 
 
@@ -109,4 +110,4 @@ async def _merge_tts_chunks(
     proc = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
     )
-    await proc.wait()
+    await _run_ffmpeg(proc, timeout=120)

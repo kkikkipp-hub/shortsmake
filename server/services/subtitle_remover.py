@@ -16,6 +16,17 @@ import numpy as np
 
 from config import WORKSPACE_DIR
 from utils.progress import progress_manager
+from utils.ffmpeg import run_ffmpeg as _run_ffmpeg
+
+# EasyOCR Reader 모듈 레벨 싱글턴 (모델 로드 비용 최소화)
+_ocr_reader = None
+
+def _get_ocr_reader():
+    global _ocr_reader
+    if _ocr_reader is None:
+        import easyocr
+        _ocr_reader = easyocr.Reader(["ko", "en"], gpu=False, verbose=False)
+    return _ocr_reader
 
 
 # ──────────────────────────────────────────────
@@ -60,11 +71,11 @@ async def detect_subtitle_region(video_path: Path) -> Optional[dict]:
             str(tmp_dir / f"frame_{i:03d}.jpg"),
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
         )
-        await proc.wait()
+        await _run_ffmpeg(proc, timeout=30)
 
     # EasyOCR (CPU) - 화면 하단 40%만 분석해서 속도 향상
     loop = asyncio.get_event_loop()
-    reader = easyocr.Reader(["ko", "en"], gpu=False, verbose=False)
+    reader = _get_ocr_reader()
 
     all_boxes: list[tuple[int, int, int, int]] = []  # (x, y, x2, y2)
     crop_top = int(height * 0.6)  # 상단 60% 무시
@@ -183,30 +194,30 @@ async def _remove_quality(job_id: str, video_path: Path, output_path: Path, regi
 
     await progress_manager.send(job_id, "subtitle_removal", 20,
                                 "OpenCV TELEA 인페인팅 시작 (시간이 걸립니다)...")
-    await loop.run_in_executor(None, process_frames)
+    try:
+        await loop.run_in_executor(None, process_frames)
 
-    # 프레임 → 영상 재조립 (오디오 포함)
-    await progress_manager.send(job_id, "subtitle_removal", 92, "영상 재조립 중...")
-    frame_pattern = str(tmp_dir / "f%07d.jpg")
-    proc = await asyncio.create_subprocess_exec(
-        "ffmpeg", "-y",
-        "-framerate", str(fps), "-i", frame_pattern,
-        "-i", str(video_path),
-        "-map", "0:v", "-map", "1:a?",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-        "-c:a", "copy", "-shortest",
-        str(output_path),
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
-    )
-    _, err = await proc.communicate()
+        # 프레임 → 영상 재조립 (오디오 포함)
+        await progress_manager.send(job_id, "subtitle_removal", 92, "영상 재조립 중...")
+        frame_pattern = str(tmp_dir / "f%07d.jpg")
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y",
+            "-framerate", str(fps), "-i", frame_pattern,
+            "-i", str(video_path),
+            "-map", "0:v", "-map", "1:a?",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            "-c:a", "copy", "-shortest",
+            str(output_path),
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+        )
+        _, err = await proc.communicate()
 
-    # 임시 파일 정리
-    for f in tmp_dir.glob("f*.jpg"):
-        f.unlink()
-    tmp_dir.rmdir()
-
-    if proc.returncode != 0:
-        raise RuntimeError(f"영상 재조립 실패: {err.decode()[-500:]}")
+        if proc.returncode != 0:
+            raise RuntimeError(f"영상 재조립 실패: {err.decode()[-500:]}")
+    finally:
+        # 예외 발생 시에도 임시 프레임 정리
+        import shutil as _shutil
+        _shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ──────────────────────────────────────────────

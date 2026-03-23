@@ -16,6 +16,7 @@ from typing import Optional
 from config import WORKSPACE_DIR
 from models.schemas import Segment
 from utils.progress import progress_manager
+from utils.ffmpeg import run_ffmpeg as _run_ffmpeg
 
 
 # ──────────────────────────────────────────────
@@ -53,7 +54,7 @@ async def _extract_frames(video_path: Path, frame_dir: Path,
             str(frame_dir / f"frame_{i:04d}_{int(ts):05d}s.jpg"),
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
         )
-        await proc.wait()
+        await _run_ffmpeg(proc, timeout=30)
 
     frames = []
     for p in sorted(frame_dir.glob("frame_*.jpg")):
@@ -120,14 +121,10 @@ async def _analyze_frames_gpt4o(
                 }
             })
 
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: asyncio.run(client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": content}],
-                max_tokens=1500,
-            ))
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": content}],
+            max_tokens=1500,
         )
 
         raw = response.choices[0].message.content.strip()
@@ -291,10 +288,8 @@ async def analyze_product_video(
                                 "GPT-4o 분석 완료. 구간 생성 중...")
 
     # 프레임 임시 파일 정리
-    for p in frame_dir.glob("frame_*.jpg"):
-        p.unlink()
-    if frame_dir.exists():
-        frame_dir.rmdir()
+    import shutil as _shutil
+    _shutil.rmtree(frame_dir, ignore_errors=True)
 
     segments, subtitles_map = _build_segments(
         frame_results, total_duration, segment_duration, max_segments
