@@ -2,6 +2,22 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.5.0] - 2026-03-23
+
+### Added
+- **로컬 파일 업로드**: InputStep에 탭 UI — URL 입력과 파일 업로드 전환 가능 (드래그&드롭 지원)
+  - `POST /api/jobs/{id}/upload` — 청크 저장 + FFprobe 메타데이터 자동 추출
+  - MP4, MOV, AVI, MKV, WEBM, M4V 지원
+- **영상 속도 조절**: EffectsStep 오디오 섹션에 속도 슬라이더 추가 (0.5x~2.0x, 0.1x 단위)
+  - 빠른 설정 버튼 6종 (0.5x / 0.75x / 1.0x / 1.25x / 1.5x / 2.0x)
+  - FFmpeg `setpts` + `atempo` 필터 기반 구현
+- **모바일 반응형 UI**: media query + 터치 최소 영역 보장 (min-height: 40px)
+
+### Changed
+- `EffectsConfig` 스키마에 `speed: float = 1.0` 필드 추가
+- 렌더 파이프라인 1.5단계 추가 — speed ≠ 1.0 시 `_apply_speed()` 적용
+- InputStep 제목 "롱폼 영상 URL 입력" → "영상 불러오기", 설명 업데이트
+
 ## [0.1.4.0] - 2026-03-23
 
 ### Added

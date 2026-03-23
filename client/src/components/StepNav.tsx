@@ -2,7 +2,7 @@ import { useProjectStore } from '../stores/projectStore'
 import type { Step } from '../types'
 
 const STEPS: { key: Step; label: string; emoji: string }[] = [
-  { key: 'input',    label: 'URL 입력',    emoji: '🔗' },
+  { key: 'input',    label: '영상 입력',   emoji: '📥' },
   { key: 'segments', label: '구간 선택',   emoji: '✂️' },
   { key: 'subtitle', label: '자막 편집',   emoji: '💬' },
   { key: 'effects',  label: '효과 설정',   emoji: '✨' },

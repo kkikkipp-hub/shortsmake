@@ -43,7 +43,7 @@ export default function App() {
         </div>
       </header>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px 60px' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 12px 80px' }}>
         <StepNav />
 
         {error && (

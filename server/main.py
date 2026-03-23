@@ -155,6 +155,59 @@ async def download(job_id: str, req: DownloadRequest, bg: BackgroundTasks):
     return {"status": "downloading", "job_id": job_id}
 
 
+@app.post("/api/jobs/{job_id}/upload")
+async def upload_video(job_id: str, file: UploadFile = File(...)):
+    """로컬 파일 직접 업로드 (MP4, MOV, AVI, MKV, WEBM 지원)"""
+    _get_job(job_id)
+    suffix = Path(file.filename or "video.mp4").suffix.lower()
+    if suffix not in (".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"):
+        raise HTTPException(400, f"지원하지 않는 파일 형식: {suffix}")
+
+    job_dir = WORKSPACE_DIR / job_id
+    video_path = job_dir / f"source{suffix}"
+
+    _set_status(job_id, JobStatus.downloading)
+    await progress_manager.send(job_id, "download", 10, "파일 저장 중...")
+
+    # 청크 단위로 저장 (대용량 파일 지원)
+    content = await file.read()
+    video_path.write_bytes(content)
+
+    # 메타데이터 추출 (FFprobe)
+    import subprocess
+    probe = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format",
+         "-show_streams", str(video_path)],
+        capture_output=True, text=True
+    )
+    duration = 0.0
+    width, height = 0, 0
+    if probe.returncode == 0:
+        info = json.loads(probe.stdout)
+        duration = float(info.get("format", {}).get("duration", 0))
+        for s in info.get("streams", []):
+            if s.get("codec_type") == "video":
+                width = s.get("width", 0)
+                height = s.get("height", 0)
+                break
+
+    name = Path(file.filename or "video.mp4").stem
+    meta = {
+        "url": f"local://{file.filename}",
+        "title": name,
+        "duration": duration,
+        "width": width,
+        "height": height,
+        "resolution": f"{width}x{height}" if width else "unknown",
+        "created_at": datetime.now().isoformat(),
+    }
+    (job_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False))
+    jobs[job_id].update({"meta": meta})
+    _set_status(job_id, JobStatus.downloaded)
+    await progress_manager.send(job_id, "download", 100, "업로드 완료!")
+    return {"status": "downloaded", "meta": meta}
+
+
 async def _bg_download(job_id: str, url: str):
     from services.downloader import download_video
     try:

@@ -105,6 +105,7 @@ export default function EffectsStep() {
     subtitle_style: DEFAULT_STYLE,
     color_preset: 'none',
     denoise_audio: false,
+    speed: 1.0,
   }
 
   function updateConfig(partial: Partial<EffectsConfig>) {
@@ -252,9 +253,50 @@ export default function EffectsStep() {
         </div>
       </div>
 
-      {/* 오디오 설정 */}
+      {/* 오디오 + 속도 설정 */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 16 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>🔊 오디오 설정</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🔊 오디오 & 속도</h3>
+
+        {/* 속도 조절 */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#191f28' }}>영상 속도</span>
+            <span style={{
+              fontSize: 13, fontWeight: 800, color: '#3182f6',
+              background: '#ebf3ff', borderRadius: 6, padding: '2px 10px',
+            }}>
+              {(config.speed ?? 1.0).toFixed(1)}x
+            </span>
+          </div>
+          <input
+            type="range" min="0.5" max="2.0" step="0.1"
+            value={config.speed ?? 1.0}
+            onChange={e => updateConfig({ speed: +e.target.value })}
+            style={{ width: '100%' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#8b95a1', marginTop: 2 }}>
+            <span>0.5x (슬로우)</span>
+            <span>1.0x (원본)</span>
+            <span>2.0x (빠르게)</span>
+          </div>
+          {/* 빠른 설정 버튼 */}
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(v => (
+              <button key={v}
+                onClick={() => updateConfig({ speed: v })}
+                style={{
+                  flex: 1, padding: '5px 0', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  border: (config.speed ?? 1.0) === v ? '2px solid #3182f6' : '1.5px solid #e5e8eb',
+                  background: (config.speed ?? 1.0) === v ? '#ebf3ff' : '#fff',
+                  color: (config.speed ?? 1.0) === v ? '#3182f6' : '#4e5968',
+                  cursor: 'pointer',
+                }}
+              >{v}x</button>
+            ))}
+          </div>
+        </div>
+
+        {/* 노이즈 감소 토글 */}
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
           <div
             onClick={() => updateConfig({ denoise_audio: !config.denoise_audio })}

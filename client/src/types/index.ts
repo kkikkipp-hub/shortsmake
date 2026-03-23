@@ -39,6 +39,7 @@ export interface EffectsConfig {
   subtitle_style: SubtitleStyle
   color_preset: string   // none | vivid | cinematic | warm | cool | bw | vintage
   denoise_audio: boolean
+  speed: number          // 영상 속도 (0.5~2.0, 기본 1.0)
 }
 
 export interface Effect {

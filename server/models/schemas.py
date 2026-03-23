@@ -124,6 +124,7 @@ class EffectsConfig(BaseModel):
     subtitle_style: SubtitleStyle = SubtitleStyle()
     color_preset: str = "none"     # none, vivid, cinematic, warm, cool, bw
     denoise_audio: bool = False    # afftdn 노이즈 감소
+    speed: float = 1.0             # 영상 속도 (0.5~2.0)
 
 
 class TTSRequest(BaseModel):
