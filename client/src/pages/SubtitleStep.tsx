@@ -137,6 +137,73 @@ export default function SubtitleStep() {
     ])
   }
 
+  const srtInputRef = useState(() => {
+    if (typeof document !== 'undefined') {
+      const el = document.createElement('input')
+      el.type = 'file'
+      el.accept = '.srt'
+      return el
+    }
+    return null
+  })[0]
+
+  function exportSrt() {
+    if (!activeSegId || !activeSubs.length) return
+    function toSrtTime(sec: number) {
+      const h = Math.floor(sec / 3600)
+      const m = Math.floor((sec % 3600) / 60)
+      const s = Math.floor(sec % 60)
+      const ms = Math.round((sec % 1) * 1000)
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`
+    }
+    const srt = activeSubs.map((s, i) =>
+      `${i + 1}\n${toSrtTime(s.start)} --> ${toSrtTime(s.end)}\n${s.text}\n`
+    ).join('\n')
+    const blob = new Blob([srt], { type: 'text/srt;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${activeSegId}_subtitle.srt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function importSrt() {
+    if (!srtInputRef || !activeSegId) return
+    srtInputRef.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string
+        const blocks = text.trim().split(/\n\n+/)
+        const parsed: SubtitleEntry[] = []
+        function srtSecOf(ts: string) {
+          const [hms, ms] = ts.split(',')
+          const [h, m, s] = hms.split(':').map(Number)
+          return h * 3600 + m * 60 + s + (parseInt(ms) || 0) / 1000
+        }
+        for (const block of blocks) {
+          const lines = block.trim().split('\n')
+          if (lines.length < 3) continue
+          const timeLine = lines[1]
+          const match = timeLine.match(/(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})/)
+          if (!match) continue
+          parsed.push({
+            id: `srt_${Date.now()}_${parsed.length}`,
+            start: srtSecOf(match[1]),
+            end: srtSecOf(match[2]),
+            text: lines.slice(2).join(' '),
+          })
+        }
+        if (parsed.length) setSubtitles(activeSegId, parsed)
+      }
+      reader.readAsText(file, 'utf-8')
+      srtInputRef.value = ''
+    }
+    srtInputRef.click()
+  }
+
   const [offsetInput, setOffsetInput] = useState('')
 
   function applyOffset() {
@@ -281,6 +348,14 @@ export default function SubtitleStep() {
               background: '#f0f7ff', border: '1px solid #93c5fd', borderRadius: 8,
               padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#2563eb', cursor: 'pointer',
             }} title="18자 초과 자막을 어절 단위로 분할">↩ 자동 줄바꿈</button>
+            <button onClick={exportSrt} style={{
+              background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8,
+              padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#15803d', cursor: 'pointer',
+            }} title="현재 자막을 SRT 파일로 내보내기">⬇ SRT 내보내기</button>
+            <button onClick={importSrt} style={{
+              background: '#fdf4ff', border: '1px solid #d8b4fe', borderRadius: 8,
+              padding: '8px 16px', fontSize: 13, fontWeight: 600, color: '#7c3aed', cursor: 'pointer',
+            }} title="SRT 파일에서 자막 가져오기">⬆ SRT 가져오기</button>
           </div>
 
           {/* 타임 오프셋 */}

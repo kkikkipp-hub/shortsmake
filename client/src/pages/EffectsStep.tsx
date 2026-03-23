@@ -105,9 +105,21 @@ function inputToSec(val: string): number {
 
 const CROP_LAYOUT_EFFECTS = ['closeup_fill', 'split_top_bottom', 'split_left_right']
 
+const CUSTOM_PRESETS_KEY = 'shortsmake_custom_presets'
+type CustomPreset = { name: string; config: Omit<Partial<EffectsConfig>, 'segment_id' | 'trim_start' | 'trim_end'> }
+
+function loadCustomPresets(): CustomPreset[] {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_PRESETS_KEY) || '[]') } catch { return [] }
+}
+function saveCustomPresets(presets: CustomPreset[]) {
+  localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(presets))
+}
+
 export default function EffectsStep() {
   const { jobId, segments, selectedSegments, effects, setEffects, setStep, setError } = useProjectStore()
   const [activeSegId, setActiveSegId] = useState(selectedSegments[0] || '')
+  const [customPresets, setCustomPresets] = useState<CustomPreset[]>(() => loadCustomPresets())
+  const [presetNameInput, setPresetNameInput] = useState('')
   const api = useApi()
 
   const activeSeg = segments.find(s => s.id === activeSegId)
@@ -140,6 +152,27 @@ export default function EffectsStep() {
       const existing = effects[sid] || { segment_id: sid }
       setEffects(sid, { ...existing, ...shared, segment_id: sid })
     }
+  }
+
+  function saveCurrentAsPreset() {
+    const name = presetNameInput.trim()
+    if (!name) return
+    const { segment_id: _, trim_start: _ts, trim_end: _te, ...presetConfig } = config as any
+    const newPresets = [...customPresets, { name, config: presetConfig }]
+    setCustomPresets(newPresets)
+    saveCustomPresets(newPresets)
+    setPresetNameInput('')
+  }
+
+  function deleteCustomPreset(idx: number) {
+    const newPresets = customPresets.filter((_, i) => i !== idx)
+    setCustomPresets(newPresets)
+    saveCustomPresets(newPresets)
+  }
+
+  function applyCustomPreset(preset: CustomPreset) {
+    const { segment_id: _, trim_start: _ts, trim_end: _te, ...rest } = preset.config as any
+    updateConfig(rest)
   }
 
   // 크롭 위치 조절이 필요한 레이아웃 효과
@@ -666,6 +699,47 @@ export default function EffectsStep() {
                 >{pos.label}</button>
               ))}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* 커스텀 프리셋 저장 */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>💾 나만의 프리셋</h3>
+        <div style={{ display: 'flex', gap: 8, marginBottom: customPresets.length > 0 ? 12 : 0 }}>
+          <input
+            type="text"
+            value={presetNameInput}
+            onChange={e => setPresetNameInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && saveCurrentAsPreset()}
+            placeholder="프리셋 이름 입력 후 저장"
+            style={{ flex: 1, border: '1px solid #e5e8eb', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none' }}
+          />
+          <button onClick={saveCurrentAsPreset} disabled={!presetNameInput.trim()} style={{
+            background: presetNameInput.trim() ? '#6366f1' : '#c9d0d7',
+            color: '#fff', border: 'none', borderRadius: 8,
+            padding: '8px 14px', fontSize: 13, fontWeight: 700,
+            cursor: presetNameInput.trim() ? 'pointer' : 'not-allowed',
+          }}>저장</button>
+        </div>
+        {customPresets.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {customPresets.map((p, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: '#f8f9fa', borderRadius: 8, padding: '8px 12px',
+              }}>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#191f28' }}>📌 {p.name}</span>
+                <button onClick={() => applyCustomPreset(p)} style={{
+                  background: '#ebf3ff', border: 'none', borderRadius: 6,
+                  padding: '4px 10px', fontSize: 12, fontWeight: 600, color: '#3182f6', cursor: 'pointer',
+                }}>적용</button>
+                <button onClick={() => deleteCustomPreset(i)} style={{
+                  background: '#fff0f0', border: 'none', borderRadius: 6,
+                  padding: '4px 8px', fontSize: 12, color: '#ef4444', cursor: 'pointer',
+                }}>✕</button>
+              </div>
+            ))}
           </div>
         )}
       </div>

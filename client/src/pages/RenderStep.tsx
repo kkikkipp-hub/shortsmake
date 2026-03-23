@@ -15,7 +15,10 @@ export default function RenderStep() {
   const [bgmFile, setBgmFile] = useState<File | null>(null)
   const [bgmUploading, setBgmUploading] = useState(false)
   const [bgmUploaded, setBgmUploaded] = useState(false)
+  const [renderLog, setRenderLog] = useState<string[]>([])
+  const [showLog, setShowLog] = useState(false)
   const bgmInputRef = useRef<HTMLInputElement>(null)
+  const logEndRef = useRef<HTMLDivElement>(null)
   const api = useApi()
 
   useEffect(() => {
@@ -72,31 +75,51 @@ export default function RenderStep() {
   async function startRender() {
     if (!jobId) return
     setRendering(true)
+    setRenderLog([])
+    setShowLog(true)
+    const addLog = (msg: string) => {
+      const ts = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      setRenderLog(prev => [...prev, `[${ts}] ${msg}`])
+    }
+    addLog(`렌더링 시작 — ${selectedSegments.length}개 구간`)
     try {
       await api.renderSegments(jobId, selectedSegments)
       // polling
       let retries = 0
+      let lastProgress = ''
       while (retries < 300) {
         await new Promise(r => setTimeout(r, 3000))
         const data = await api.getJob(jobId)
+        if (data.progress && data.progress !== lastProgress) {
+          addLog(data.progress)
+          lastProgress = data.progress
+        }
         if (data.status === 'completed') {
+          addLog('✅ 렌더링 완료!')
           const files = await api.getOutputs(jobId)
           setOutputs(files)
           setLocalStep('done')
           break
         }
         if (data.status === 'failed') {
+          addLog('❌ 렌더링 실패: ' + (data.error || '알 수 없는 오류'))
           setError(data.error || '렌더링 실패')
           break
         }
         retries++
       }
     } catch (e: any) {
+      addLog('❌ 오류: ' + e.message)
       setError(e.message)
     } finally {
       setRendering(false)
     }
   }
+
+  // 로그 자동 스크롤
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [renderLog])
 
   return (
     <div style={{ maxWidth: 700, margin: '0 auto' }}>
@@ -223,6 +246,35 @@ export default function RenderStep() {
           }}>
             {rendering ? '🔄 렌더링 진행 중...' : '🚀 최종 렌더링 시작'}
           </button>
+
+          {/* 렌더링 로그 */}
+          {renderLog.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#4e5968' }}>📋 렌더링 로그</span>
+                <button
+                  onClick={() => setShowLog(v => !v)}
+                  style={{ background: 'none', border: 'none', fontSize: 11, color: '#8b95a1', cursor: 'pointer' }}
+                >
+                  {showLog ? '▲ 접기' : '▼ 펼치기'}
+                </button>
+              </div>
+              {showLog && (
+                <div style={{
+                  background: '#0f172a', borderRadius: 10, padding: '12px 14px',
+                  maxHeight: 220, overflowY: 'auto',
+                  fontFamily: 'monospace', fontSize: 11, lineHeight: 1.7,
+                }}>
+                  {renderLog.map((line, i) => (
+                    <div key={i} style={{
+                      color: line.includes('❌') ? '#f87171' : line.includes('✅') ? '#4ade80' : '#94a3b8',
+                    }}>{line}</div>
+                  ))}
+                  <div ref={logEndRef} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
