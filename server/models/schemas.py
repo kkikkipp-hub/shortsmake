@@ -35,11 +35,18 @@ class Segment(BaseModel):
     thumbnail: Optional[str] = None
 
 
+class WordEntry(BaseModel):
+    word: str
+    start: float
+    end: float
+
+
 class SubtitleEntry(BaseModel):
     id: str
     start: float
     end: float
     text: str
+    words: list[WordEntry] = []
 
 
 class SubtitleData(BaseModel):

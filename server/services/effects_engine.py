@@ -346,10 +346,36 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     for sub in subs:
         start = _sec_to_ass_time(sub["start"])
         end = _sec_to_ass_time(sub["end"])
-        text = sub["text"].replace("\n", "\\N")
+        text = _make_karaoke_text(sub)
         events.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}")
 
     output.write_text(header + "\n".join(events), encoding="utf-8")
+
+
+def _make_karaoke_text(sub: dict) -> str:
+    """단어 타임스탬프로 ASS 카라오케 \\k 태그 생성 (단어별 하이라이트)"""
+    words = sub.get("words", [])
+    if not words:
+        return sub["text"].replace("\n", "\\N")
+
+    parts = []
+    prev_time = sub["start"]
+    for w in words:
+        word_start = w["start"]
+        word_end = w["end"]
+        word_text = w["word"]
+
+        # 단어 앞 무음 구간
+        gap_cs = int((word_start - prev_time) * 100)
+        if gap_cs > 0:
+            parts.append(f"{{\\k{gap_cs}}}")
+
+        # 단어 하이라이트 구간
+        dur_cs = max(1, int((word_end - word_start) * 100))
+        parts.append(f"{{\\k{dur_cs}}}{word_text}")
+        prev_time = word_end
+
+    return "".join(parts)
 
 
 def _sec_to_ass_time(sec: float) -> str:

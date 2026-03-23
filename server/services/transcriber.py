@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from config import WORKSPACE_DIR, WHISPER_MODEL, WHISPER_DEVICE, WHISPER_COMPUTE
 from utils.progress import progress_manager
-from models.schemas import SubtitleEntry
+from models.schemas import SubtitleEntry, WordEntry
 
 
 _whisper_model = None
@@ -121,11 +121,21 @@ async def transcribe_segment(job_id: str, segment_id: str) -> list[SubtitleEntry
             if subtitles[-1].text == text and subtitles[-2].text == text:
                 continue
         idx += 1
+        words = [
+            WordEntry(
+                word=w.word.strip(),
+                start=round(w.start, 2),
+                end=round(w.end, 2),
+            )
+            for w in (ws.words or [])
+            if w.word.strip()
+        ]
         subtitles.append(SubtitleEntry(
             id=f"{segment_id}_sub_{idx:03d}",
             start=round(ws.start, 2),
             end=round(ws.end, 2),
             text=text,
+            words=words,
         ))
         prev_text = text
 

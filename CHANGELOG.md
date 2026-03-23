@@ -2,6 +2,21 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+## [0.1.2.0] - 2026-03-23
+
+### Added
+- **구간 미리보기 플레이어**: 구간 선택 화면에서 ▶ 버튼으로 해당 구간을 즉시 미리보기 (HTML Media Fragment 활용)
+- **단어별 카라오케 자막**: Whisper 단어 타임스탬프를 ASS `\k` 태그로 변환 — 단어 단위 하이라이트 렌더링
+- **자막 타임라인 시각화**: 자막 편집 화면 상단에 구간별 타임라인 바 표시, 클릭 시 해당 자막으로 스크롤
+- **소스 영상 스트리밍 API**: `GET /api/jobs/{job_id}/source` 엔드포인트 추가
+
+### Changed
+- **병렬 렌더링**: 구간 렌더링을 `asyncio.gather()`로 변경 — 다수 구간 동시 처리로 최대 5x 속도 향상
+- **schemas.py**: `SubtitleEntry`에 `words: list[WordEntry]` 필드 추가 (카라오케용)
+
+### Fixed
+- **yt-dlp 타임아웃**: 메타 조회 60초, 다운로드 10분 타임아웃 추가 — 무한 대기 방지
+
 ## [0.1.1.0] - 2026-03-23
 
 ### Fixed

@@ -302,23 +302,28 @@ async def render(job_id: str, req: RenderRequest, bg: BackgroundTasks):
 async def _bg_render(job_id: str, segment_ids: list[str]):
     from services.effects_engine import render_segment
     job_dir = WORKSPACE_DIR / job_id
+    completed = 0
+    total = len(segment_ids)
+
+    async def render_one(sid: str):
+        nonlocal completed
+        fx_file = job_dir / "effects" / f"{sid}.json"
+        if fx_file.exists():
+            config = EffectsConfig.model_validate_json(fx_file.read_text())
+        else:
+            config = EffectsConfig(segment_id=sid)
+        await render_segment(job_id, sid, config)
+        completed += 1
+        await progress_manager.send(
+            job_id, "render",
+            (completed / total) * 100,
+            f"완료 {completed}/{total}: {sid}",
+        )
+
     try:
-        total = len(segment_ids)
-        for i, sid in enumerate(segment_ids):
-            # 효과 설정 로드
-            fx_file = job_dir / "effects" / f"{sid}.json"
-            if fx_file.exists():
-                config = EffectsConfig.model_validate_json(fx_file.read_text())
-            else:
-                config = EffectsConfig(segment_id=sid)
-
-            await progress_manager.send(
-                job_id, "render",
-                (i / total) * 100,
-                f"렌더링 {i+1}/{total}: {sid}",
-            )
-            await render_segment(job_id, sid, config)
-
+        await progress_manager.send(job_id, "render", 0,
+                                    f"{total}개 구간 병렬 렌더링 시작...")
+        await asyncio.gather(*[render_one(sid) for sid in segment_ids])
         _set_status(job_id, JobStatus.completed)
         await progress_manager.send(job_id, "render", 100,
                                     f"모든 렌더링 완료! ({total}개)")
@@ -329,6 +334,21 @@ async def _bg_render(job_id: str, segment_ids: list[str]):
 
 
 # ── 파일 제공 ─────────────────────────────────────────────────────────
+@app.get("/api/jobs/{job_id}/source")
+async def get_source_file(job_id: str):
+    """구간 미리보기용 원본 영상 스트리밍"""
+    _get_job(job_id)
+    job_dir = WORKSPACE_DIR / job_id
+    for ext in ["mp4", "mkv", "webm", "avi"]:
+        p = job_dir / f"source.{ext}"
+        if p.exists():
+            return FileResponse(
+                p, media_type="video/mp4",
+                headers={"Accept-Ranges": "bytes"},
+            )
+    raise HTTPException(404, "소스 파일 없음")
+
+
 @app.get("/api/jobs/{job_id}/thumb/{filename}")
 async def get_thumbnail(job_id: str, filename: str):
     path = WORKSPACE_DIR / job_id / "thumbnails" / filename
