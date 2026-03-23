@@ -21,7 +21,11 @@ async def download_video(job_id: str, url: str) -> dict:
     meta_proc = await asyncio.create_subprocess_exec(
         *meta_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
-    stdout, stderr = await meta_proc.communicate()
+    try:
+        stdout, stderr = await asyncio.wait_for(meta_proc.communicate(), timeout=60)
+    except asyncio.TimeoutError:
+        meta_proc.kill()
+        raise RuntimeError("메타 정보 조회 타임아웃 (60초)")
     if meta_proc.returncode != 0:
         raise RuntimeError(f"메타 정보 실패: {stderr.decode()[:300]}")
 
@@ -57,24 +61,31 @@ async def download_video(job_id: str, url: str) -> dict:
         *dl_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
     )
 
-    while True:
-        line = await proc.stdout.readline()
-        if not line:
-            break
-        text = line.decode().strip()
-        # yt-dlp 진행률 파싱: "[download]  45.2% of ..."
-        if "[download]" in text and "%" in text:
-            try:
-                pct_str = text.split("%")[0].split()[-1]
-                pct = float(pct_str)
-                await progress_manager.send(job_id, "download",
-                                            10 + pct * 0.85, f"다운로드 중 {pct:.0f}%")
-            except (ValueError, IndexError):
-                pass
-        elif "[Merger]" in text or "Merging" in text:
-            await progress_manager.send(job_id, "download", 96, "영상 병합 중...")
+    async def _read_progress():
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            text = line.decode().strip()
+            if "[download]" in text and "%" in text:
+                try:
+                    pct_str = text.split("%")[0].split()[-1]
+                    pct = float(pct_str)
+                    await progress_manager.send(job_id, "download",
+                                                10 + pct * 0.85, f"다운로드 중 {pct:.0f}%")
+                except (ValueError, IndexError):
+                    pass
+            elif "[Merger]" in text or "Merging" in text:
+                await progress_manager.send(job_id, "download", 96, "영상 병합 중...")
+        await proc.wait()
 
-    await proc.wait()
+    try:
+        await asyncio.wait_for(_read_progress(), timeout=600)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError("다운로드 타임아웃 (10분 초과)")
+
     if proc.returncode != 0:
         raise RuntimeError("다운로드 실패")
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useProjectStore } from '../stores/projectStore'
 import { useApi } from '../hooks/useApi'
 import ProgressBar from '../components/ProgressBar'
@@ -15,6 +15,8 @@ export default function SegmentsStep() {
   const [duration, setDuration] = useState(30)
   const [maxCount, setMaxCount] = useState(5)
   const [analyzing, setAnalyzing] = useState(false)
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const api = useApi()
 
   async function startAnalysis() {
@@ -161,6 +163,21 @@ export default function SegmentsStep() {
                     </div>
                   </div>
 
+                  <button
+                    onClick={e => {
+                      e.stopPropagation()
+                      setPreviewId(previewId === seg.id ? null : seg.id)
+                    }}
+                    style={{
+                      background: previewId === seg.id ? '#3182f6' : '#f2f4f6',
+                      color: previewId === seg.id ? '#fff' : '#4e5968',
+                      border: 'none', borderRadius: 8,
+                      padding: '6px 10px', fontSize: 13, cursor: 'pointer', flexShrink: 0,
+                    }}
+                  >
+                    {previewId === seg.id ? '⏹' : '▶'}
+                  </button>
+
                   <div style={{
                     width: 24, height: 24, borderRadius: 6,
                     border: `2px solid ${selected ? '#3182f6' : '#c9d0d7'}`,
@@ -171,6 +188,21 @@ export default function SegmentsStep() {
                     {selected && '✓'}
                   </div>
                 </div>
+
+                {/* 미리보기 플레이어 */}
+                {previewId === seg.id && (
+                  <video
+                    ref={videoRef}
+                    src={`/api/jobs/${jobId}/source#t=${seg.start_sec},${seg.end_sec}`}
+                    controls
+                    autoPlay
+                    style={{
+                      width: '100%', maxHeight: 300, borderRadius: 10,
+                      background: '#000', display: 'block', marginTop: 12,
+                    }}
+                    onEnded={() => setPreviewId(null)}
+                  />
+                )}
               )
             })}
           </div>

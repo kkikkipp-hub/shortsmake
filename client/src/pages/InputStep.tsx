@@ -27,7 +27,7 @@ export default function InputStep() {
   const [url, setUrl] = useState('')
   const [prevJobs, setPrevJobs] = useState<PrevJob[]>([])
   const [loadingJobs, setLoadingJobs] = useState(true)
-  const { job, loading, setJobId, setJob, setStep, setSegments, setLoading, setError } = useProjectStore()
+  const { job, loading, setJobId, setJob, setStep, setSegments, setSelectedSegments, setSubtitles, setLoading, setError } = useProjectStore()
   const api = useApi()
 
   useEffect(() => {
@@ -41,8 +41,12 @@ export default function InputStep() {
       .finally(() => setLoadingJobs(false))
   }, [])
 
+  function isValidUrl(u: string): boolean {
+    try { new URL(u); return true } catch { return false }
+  }
+
   async function handleSubmit() {
-    if (!url.trim()) return
+    if (!url.trim() || !isValidUrl(url.trim())) return
     setLoading(true)
     setError(null)
     try {
@@ -80,6 +84,17 @@ export default function InputStep() {
       setJob(data)
       if (data.segments?.length) {
         setSegments(data.segments)
+        const segIds = data.segments.map((seg: { id: string }) => seg.id)
+        setSelectedSegments(segIds)
+        // 이미 자막이 생성된 경우 자막 데이터도 복원 (병렬 로드)
+        if (data.status === 'transcribed' || data.status === 'completed') {
+          await Promise.all(segIds.map(async (sid) => {
+            try {
+              const subs = await api.getSubtitle(pj.id, sid)
+              setSubtitles(sid, subs)
+            } catch {}
+          }))
+        }
       }
       const s = data.status
       if (s === 'completed') {
@@ -140,7 +155,7 @@ export default function InputStep() {
           />
           <button
             onClick={handleSubmit}
-            disabled={loading || !url.trim()}
+            disabled={loading || !url.trim() || !isValidUrl(url.trim())}
             style={{
               background: loading ? '#c9deff' : '#3182f6',
               color: '#fff', border: 'none', borderRadius: 10,
@@ -170,6 +185,7 @@ export default function InputStep() {
         )}
       </div>
 
+      {/* 이전 작업 목록 */}
       {!loadingJobs && prevJobs.length > 0 && (
         <div style={{ marginTop: 28 }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, color: '#191f28', marginBottom: 12 }}>

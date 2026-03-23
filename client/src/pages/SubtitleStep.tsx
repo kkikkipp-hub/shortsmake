@@ -126,10 +126,46 @@ export default function SubtitleStep() {
             ))}
           </div>
 
+          {/* 타임라인 시각화 */}
+          {activeSubs.length > 0 && (() => {
+            const totalDur = activeSubs[activeSubs.length - 1]?.end || 1
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#8b95a1', marginBottom: 6 }}>
+                  타임라인 ({totalDur.toFixed(1)}초)
+                </div>
+                <div style={{
+                  position: 'relative', height: 28, background: '#f2f4f6',
+                  borderRadius: 8, overflow: 'hidden',
+                }}>
+                  {activeSubs.map((sub, idx) => (
+                    <div
+                      key={sub.id}
+                      title={`${sub.start.toFixed(1)}~${sub.end.toFixed(1)}s: ${sub.text}`}
+                      onClick={() => {
+                        const el = document.getElementById(`sub-row-${idx}`)
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      }}
+                      style={{
+                        position: 'absolute',
+                        left: `${(sub.start / totalDur) * 100}%`,
+                        width: `${Math.max(0.5, ((sub.end - sub.start) / totalDur) * 100)}%`,
+                        height: '100%',
+                        background: `hsl(${(idx * 37) % 360}, 60%, 55%)`,
+                        cursor: 'pointer',
+                        borderRight: '1px solid rgba(255,255,255,0.4)',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* 자막 리스트 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
             {activeSubs.map((sub, idx) => (
-              <div key={sub.id} style={{
+              <div key={sub.id} id={`sub-row-${idx}`} style={{
                 background: '#fff', borderRadius: 12, padding: '12px 16px',
                 border: '1px solid #e5e8eb', display: 'flex', gap: 10, alignItems: 'center',
               }}>

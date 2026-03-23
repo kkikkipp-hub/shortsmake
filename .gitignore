@@ -21,3 +21,7 @@ server/workspace/
 # 환경변수
 .env
 .env.local
+
+# Vite template files
+client/README.md
+client/.gitignore
