@@ -72,5 +72,31 @@ export function useApi() {
       form.append('file', file)
       return api.post(`/jobs/${jobId}/upload`, form).then(r => r.data)
     },
+
+    removeSubtitles: (jobId: string, mode: 'fast' | 'quality' = 'fast') =>
+      api.post(`/jobs/${jobId}/remove_subtitles`, { mode }).then(r => r.data),
+
+    analyzeVisual: (jobId: string, params: {
+      frame_interval?: number
+      segment_duration?: number
+      max_segments?: number
+      product_hint?: string
+    }) => api.post(`/jobs/${jobId}/analyze_visual`, params).then(r => r.data),
+
+    getVisionSubtitles: (jobId: string, segId: string) =>
+      api.get(`/jobs/${jobId}/vision_subtitles/${segId}`).then(r => r.data),
+
+    createThumbnail: (jobId: string, segId: string, timeOffset?: number, title?: string) =>
+      api.post(`/jobs/${jobId}/segments/${segId}/thumbnail`, null, {
+        params: { time_offset: timeOffset, title: title || '' },
+      }).then(r => r.data),
+
+    uploadFontForJob: (jobId: string, file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api.post(`/jobs/${jobId}/font`, form).then(r => r.data)
+    },
+
+    listFonts: () => api.get('/fonts').then(r => r.data),
   }
 }

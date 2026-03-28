@@ -11,8 +11,13 @@ interface ProjectState {
   effects: Record<string, EffectsConfig>
   outputs: OutputFile[]
   progress: WsMessage | null
+  segmentProgress: Record<string, number>  // seg_id → 0~100
   loading: boolean
   error: string | null
+  // 제품 쇼츠 모드
+  productMode: boolean
+  productHint: string
+  removeHardcodedSubs: boolean
 
   setStep: (step: Step) => void
   setJobId: (id: string) => void
@@ -24,8 +29,12 @@ interface ProjectState {
   setEffects: (segId: string, config: EffectsConfig) => void
   setOutputs: (files: OutputFile[]) => void
   setProgress: (msg: WsMessage) => void
+  setSegmentProgress: (segId: string, pct: number) => void
   setLoading: (v: boolean) => void
   setError: (e: string | null) => void
+  setProductMode: (v: boolean) => void
+  setProductHint: (v: string) => void
+  setRemoveHardcodedSubs: (v: boolean) => void
   reset: () => void
 }
 
@@ -39,8 +48,12 @@ const initial = {
   effects: {} as Record<string, EffectsConfig>,
   outputs: [] as OutputFile[],
   progress: null as WsMessage | null,
+  segmentProgress: {} as Record<string, number>,
   loading: false,
   error: null as string | null,
+  productMode: false,
+  productHint: '',
+  removeHardcodedSubs: false,
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -62,8 +75,22 @@ export const useProjectStore = create<ProjectState>((set) => ({
   setEffects: (segId, config) =>
     set((s) => ({ effects: { ...s.effects, [segId]: config } })),
   setOutputs: (outputs) => set({ outputs }),
-  setProgress: (progress) => set({ progress }),
+  setProgress: (progress) => {
+    set({ progress })
+    // WS detail에서 구간별 진행률 추출
+    if (progress.detail?.seg_id) {
+      const { seg_id, seg_progress } = progress.detail
+      if (typeof seg_progress === 'number') {
+        set(s => ({ segmentProgress: { ...s.segmentProgress, [seg_id]: seg_progress } }))
+      }
+    }
+  },
+  setSegmentProgress: (segId, pct) =>
+    set(s => ({ segmentProgress: { ...s.segmentProgress, [segId]: pct } })),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+  setProductMode: (productMode) => set({ productMode }),
+  setProductHint: (productHint) => set({ productHint }),
+  setRemoveHardcodedSubs: (removeHardcodedSubs) => set({ removeHardcodedSubs }),
   reset: () => set(initial),
 }))

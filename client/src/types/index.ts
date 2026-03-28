@@ -64,6 +64,12 @@ export interface SubtitleStyle {
   position: 'top' | 'center' | 'bottom'
   bg_color?: string
   bg_opacity: number
+  // 고급 스타일
+  bold: boolean
+  italic: boolean
+  shadow: number         // 0~4
+  shadow_color: string
+  letter_spacing: number // 자간
 }
 
 export interface Voice {
@@ -77,7 +83,11 @@ export interface WsMessage {
   step: string
   progress: number
   message: string
-  detail?: Record<string, unknown>
+  detail?: {
+    seg_id?: string
+    seg_progress?: number
+    [key: string]: unknown
+  }
 }
 
 export interface OutputFile {

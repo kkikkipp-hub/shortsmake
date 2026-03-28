@@ -2,6 +2,61 @@
 
 All notable changes to ShortsMake will be documented in this file.
 
+
+## [0.1.12.0] - 2026-03-23
+
+### Fixed
+- **FFmpeg 타임아웃 전파**: `vision_analyzer`, `subtitle_remover`의 모든 FFmpeg 호출에 `_run_ffmpeg(timeout=300)` 적용 (effects_engine은 기존 완료)
+- **asyncio.gather return_exceptions=True**: 배치 렌더링에서 첫 번째 세그먼트 실패 시 나머지 태스크가 고아가 되는 문제 수정
+- **AsyncOpenAI antipattern**: `loop.run_in_executor(lambda: asyncio.run(...))` 패턴 제거 → `await client.chat.completions.create(...)` 직접 호출
+- **EasyOCR 모듈 레벨 싱글턴**: `_get_ocr_reader()` 팩토리로 중복 모델 로드 방지
+- **파일 업로드 스트리밍**: 대용량 영상 업로드 시 OOM 방지 — `file.read()` → 64KB 청크 스트리밍
+- **임시 파일 정리 누락**: `_remove_quality` 예외 시 GB 단위 JPEG 프레임 누수 → `try/finally + shutil.rmtree` 적용
+- **frame_dir.rmdir() OSError**: 빈 디렉터리가 아닐 경우 실패 → `shutil.rmtree` 교체
+- **폰트 파일명 path traversal**: `../` 포함 파일명으로 FONTS_DIR 외부 쓰기 가능한 문제 → `re.sub` 세니타이즈 적용
+- **FFmpeg drawtext 주입 취약점**: 썸네일 title에 `\`, `[`, `]`, `;`, `%` 미이스케이프 → FFmpeg filter syntax 기준 완전 이스케이프
+- **Dead code 제거**: `useApi.ts`의 미사용 `uploadFont` 전역 함수 제거
+
+## [0.1.11.1] - 2026-03-23
+
+### Changed
+- **OpenAI API 키 UI 제거**: 제품 쇼츠 모드에서 API 키 입력창 제거, `server/.env`의 `OPENAI_API_KEY` 환경변수에서 자동 로드
+  - `VisualAnalyzeRequest` 스키마에서 `openai_api_key` 필드 제거
+  - 프론트엔드 store(`openaiApiKey` 상태), InputStep UI, SegmentsStep 의존성 모두 제거
+
+## [0.1.11.0] - 2026-03-23
+
+### Added
+- **Job 관리 대시보드**: 헤더 "📂 이전 작업" 버튼 → 슬라이드인 패널
+  - 이전 작업 목록 (최신순 정렬), 상태 배지 색상 구분
+  - ZIP 다운로드 버튼 (출력 파일 있는 경우), 작업 삭제 버튼
+- **자막 스타일 고급화**: Bold/Italic 토글, 그림자 깊이(0-4), 자간(0-10) 슬라이더
+  - ASS 자막 포맷에 Bold(-1/0), Italic(1/0), Shadow, Spacing 필드 적용
+- **폰트 업로드**: EffectsStep에서 TTF/OTF 업로드 → 폰트 목록 셀렉터
+- **썸네일 자동 생성**: 구간 중간 프레임 FFmpeg 추출, 다운로드 지원
+- **배치 렌더링 구간별 진행률**: WS `detail.seg_id/seg_progress` → per-segment 프로그레스바
+- **WebSocket 자동 재연결**: 지수 백오프(최대 30초, 최대 10회), 폴링 방식 완전 제거
+
+## [0.1.10.0] - 2026-03-23
+
+### Added
+- **제품 쇼츠 모드 (P8)**: InputStep에 "🛍️ 제품 쇼츠 모드" 토글 섹션
+  - OpenAI API 키 입력 (비밀번호 타입)
+  - 제품 힌트 텍스트 입력 (예: "삼성 갤럭시 S25")
+  - 번인 자막 제거 체크박스
+- **GPT-4o 비전 분석**: `POST /api/jobs/{id}/analyze_visual` — 오디오 없는 영상도 분석
+  - 5초 간격 프레임 추출 → GPT-4o vision으로 하이라이트 구간 선정
+  - 각 구간별 자막 스크립트 자동 생성 (15자 이내)
+  - `detail: low` 모드로 비용 절감 (약 1,500 프레임/1시간 영상 기준 $0.10~0.15)
+- **번인 자막 제거**: `POST /api/jobs/{id}/remove_subtitles` — 두 가지 모드
+  - `fast`: FFmpeg delogo 필터 (실시간, 흐릿할 수 있음)
+  - `quality`: OpenCV TELEA 인페인팅 (CPU 기준 5분 영상 약 10~20분, 고품질)
+  - EasyOCR로 자막 영역 자동 감지 후 고정 마스크 적용
+- **SegmentsStep 제품 모드 UI**: 제품 모드 활성화 시
+  - 번인 자막 제거 패널 (모드 선택 + 제거 시작 버튼)
+  - 오디오 분석 버튼 대신 "👁 비전 AI 분석" 버튼으로 전환
+  - 구간 이유 레이블에 `product_highlight` 추가
+
 ## [0.1.9.0] - 2026-03-23
 
 ### Added

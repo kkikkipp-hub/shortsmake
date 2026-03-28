@@ -1,6 +1,7 @@
 import asyncio
 import io
 import json
+import re
 import uuid
 import zipfile
 from datetime import datetime
@@ -11,11 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from config import WORKSPACE_DIR, API_KEY
+from config import WORKSPACE_DIR, API_KEY, OPENAI_API_KEY
 from models.schemas import (
     DownloadRequest, AnalyzeRequest, SegmentSelectRequest,
     SubtitleData, TTSRequest, EffectsConfig, RenderRequest,
     RewriteRequest, JobInfo, JobStatus, Segment,
+    SubtitleRemoveRequest, VisualAnalyzeRequest,
 )
 from utils.progress import progress_manager
 
@@ -169,9 +171,14 @@ async def upload_video(job_id: str, file: UploadFile = File(...)):
     _set_status(job_id, JobStatus.downloading)
     await progress_manager.send(job_id, "download", 10, "파일 저장 중...")
 
-    # 청크 단위로 저장 (대용량 파일 지원)
-    content = await file.read()
-    video_path.write_bytes(content)
+    # 청크 스트리밍 저장 (대용량 파일 OOM 방지)
+    CHUNK = 64 * 1024  # 64KB
+    with video_path.open("wb") as f:
+        while True:
+            chunk = await file.read(CHUNK)
+            if not chunk:
+                break
+            f.write(chunk)
 
     # 메타데이터 추출 (FFprobe)
     import subprocess
@@ -218,6 +225,72 @@ async def _bg_download(job_id: str, url: str):
         jobs[job_id]["error"] = str(e)
         _set_status(job_id, JobStatus.failed)
         await progress_manager.send(job_id, "download", -1, f"오류: {e}")
+
+
+# ── 제품 모드: 자막 제거 ──────────────────────────────────────────────
+@app.post("/api/jobs/{job_id}/remove_subtitles")
+async def remove_subtitles(job_id: str, req: SubtitleRemoveRequest, bg: BackgroundTasks):
+    _get_job(job_id)
+    jobs[job_id]["subtitle_removal"] = "processing"
+    bg.add_task(_bg_remove_subtitles, job_id, req.mode)
+    return {"status": "processing", "mode": req.mode}
+
+
+async def _bg_remove_subtitles(job_id: str, mode: str):
+    from services.subtitle_remover import remove_subtitles as _remove
+    try:
+        output = await _remove(job_id, mode)
+        jobs[job_id]["subtitle_removal"] = "done"
+        jobs[job_id]["subtitle_removal_file"] = str(output)
+        await progress_manager.send(job_id, "subtitle_removal", 100, "자막 제거 완료!")
+    except Exception as e:
+        jobs[job_id]["subtitle_removal"] = "failed"
+        jobs[job_id]["error"] = str(e)
+        await progress_manager.send(job_id, "subtitle_removal", -1, f"자막 제거 오류: {e}")
+
+
+# ── 제품 모드: 비전 분석 ───────────────────────────────────────────────
+@app.post("/api/jobs/{job_id}/analyze_visual")
+async def analyze_visual(job_id: str, req: VisualAnalyzeRequest, bg: BackgroundTasks):
+    _get_job(job_id)
+    _set_status(job_id, JobStatus.analyzing)
+    bg.add_task(_bg_analyze_visual, job_id, req)
+    return {"status": "analyzing"}
+
+
+async def _bg_analyze_visual(job_id: str, req: VisualAnalyzeRequest):
+    from services.vision_analyzer import analyze_product_video
+    try:
+        segments, subtitles_map = await analyze_product_video(
+            job_id=job_id,
+            api_key=OPENAI_API_KEY,
+            frame_interval=req.frame_interval,
+            segment_duration=req.segment_duration,
+            max_segments=req.max_segments,
+            product_hint=req.product_hint,
+        )
+        jobs[job_id]["segments"] = [s.model_dump() for s in segments]
+        jobs[job_id]["vision_subtitles"] = subtitles_map
+        _set_status(job_id, JobStatus.analyzed)
+    except Exception as e:
+        jobs[job_id]["error"] = str(e)
+        _set_status(job_id, JobStatus.failed)
+        await progress_manager.send(job_id, "analyze", -1, f"비전 분석 오류: {e}")
+
+
+# ── 제품 모드: 비전 자막 조회 ──────────────────────────────────────────
+@app.get("/api/jobs/{job_id}/vision_subtitles/{seg_id}")
+async def get_vision_subtitles(job_id: str, seg_id: str):
+    job = _get_job(job_id)
+    vision_subs = job.get("vision_subtitles") or {}
+    subs = vision_subs.get(seg_id, [])
+    # vision_subtitles.json 파일에서도 확인
+    if not subs:
+        vs_file = WORKSPACE_DIR / job_id / "vision_subtitles.json"
+        if vs_file.exists():
+            all_vs = json.loads(vs_file.read_text())
+            subs = all_vs.get(seg_id, [])
+    return subs
 
 
 # ── Step 2: 분석 ──────────────────────────────────────────────────────
@@ -344,6 +417,7 @@ async def _bg_tts(job_id: str, segment_id: str, voice: str, speed: float):
     try:
         await synthesize_segment_tts(job_id, segment_id, voice, speed)
     except Exception as e:
+        jobs[job_id]["error"] = str(e)
         await progress_manager.send(job_id, "tts", -1, f"TTS 오류: {e}")
 
 
@@ -380,25 +454,47 @@ async def _bg_render(job_id: str, segment_ids: list[str]):
             config = EffectsConfig.model_validate_json(fx_file.read_text())
         else:
             config = EffectsConfig(segment_id=sid)
-        await render_segment(job_id, sid, config)
+        # 구간 시작 알림
+        await progress_manager.send(
+            job_id, "render",
+            (completed / total) * 100,
+            f"렌더링 중: {sid}",
+            {"seg_id": sid, "seg_progress": 0},
+        )
+        try:
+            await render_segment(job_id, sid, config)
+        except Exception as seg_err:
+            await progress_manager.send(
+                job_id, "render", -1,
+                f"{sid} 렌더링 오류: {seg_err}",
+                {"seg_id": sid, "seg_progress": -1},
+            )
+            raise
         completed += 1
+        # 구간 완료 알림
         await progress_manager.send(
             job_id, "render",
             (completed / total) * 100,
             f"완료 {completed}/{total}: {sid}",
+            {"seg_id": sid, "seg_progress": 100},
         )
 
-    try:
-        await progress_manager.send(job_id, "render", 0,
-                                    f"{total}개 구간 병렬 렌더링 시작...")
-        await asyncio.gather(*[render_one(sid) for sid in segment_ids])
+    await progress_manager.send(job_id, "render", 0,
+                                f"{total}개 구간 병렬 렌더링 시작...")
+    results = await asyncio.gather(
+        *[render_one(sid) for sid in segment_ids],
+        return_exceptions=True,
+    )
+    errors = [r for r in results if isinstance(r, BaseException)]
+    if errors:
+        jobs[job_id]["error"] = str(errors[0])
+        _set_status(job_id, JobStatus.failed)
+        await progress_manager.send(job_id, "render", -1,
+                                    f"렌더링 오류 ({len(errors)}/{total}개 구간 실패): {errors[0]}")
+    else:
         _set_status(job_id, JobStatus.completed)
         await progress_manager.send(job_id, "render", 100,
                                     f"모든 렌더링 완료! ({total}개)")
-    except Exception as e:
-        jobs[job_id]["error"] = str(e)
-        _set_status(job_id, JobStatus.failed)
-        await progress_manager.send(job_id, "render", -1, f"렌더링 오류: {e}")
 
 
 # ── 파일 제공 ─────────────────────────────────────────────────────────
@@ -499,6 +595,49 @@ async def get_preview_file(job_id: str, filename: str):
         raise HTTPException(404, "미리보기 파일 없음")
     return FileResponse(path, media_type="video/mp4",
                         headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/jobs/{job_id}/segments/{segment_id}/thumbnail")
+async def create_thumbnail(
+    job_id: str, segment_id: str,
+    time_offset: float | None = None,
+    title: str = "",
+):
+    """구간 썸네일 생성 (중간 프레임 추출, 선택적 제목 오버레이)"""
+    from services.effects_engine import generate_thumbnail
+    _get_job(job_id)
+    try:
+        thumb = await generate_thumbnail(job_id, segment_id, time_offset, title)
+        return {"url": f"/api/jobs/{job_id}/thumb/{thumb.name}"}
+    except Exception as e:
+        raise HTTPException(500, f"썸네일 생성 실패: {e}")
+
+
+@app.post("/api/jobs/{job_id}/font")
+async def upload_font(job_id: str, file: UploadFile = File(...)):
+    """커스텀 폰트 업로드 (TTF/OTF) — FONTS_DIR에 저장"""
+    from config import FONTS_DIR
+    suffix = Path(file.filename or "font.ttf").suffix.lower()
+    if suffix not in (".ttf", ".otf"):
+        raise HTTPException(400, "TTF 또는 OTF 파일만 허용됩니다")
+    FONTS_DIR.mkdir(parents=True, exist_ok=True)
+    safe_stem = re.sub(r"[^\w\-]", "_", Path(file.filename or "font").stem)[:64]
+    font_path = FONTS_DIR / (safe_stem + suffix)
+    font_path.write_bytes(await file.read())
+    return {"font_name": font_path.stem, "filename": font_path.name}
+
+
+@app.get("/api/fonts")
+async def list_fonts():
+    """사용 가능한 폰트 목록 (내장 + 업로드)"""
+    from config import FONTS_DIR
+    built_in = [{"name": "GmarketSansTTFBold", "label": "지마켓산스 볼드 (기본)"}]
+    custom = []
+    if FONTS_DIR.exists():
+        for f in sorted(FONTS_DIR.glob("*.ttf")) + sorted(FONTS_DIR.glob("*.otf")):
+            if f.stem != "GmarketSansTTFBold":
+                custom.append({"name": f.stem, "label": f.stem})
+    return built_in + custom
 
 
 @app.post("/api/jobs/{job_id}/bgm")

@@ -104,6 +104,12 @@ class SubtitleStyle(BaseModel):
     position: str = "bottom"  # top, center, bottom
     bg_color: Optional[str] = None
     bg_opacity: float = 0.6
+    # 고급 스타일
+    bold: bool = True
+    italic: bool = False
+    shadow: int = 1              # 0=없음, 1~4=깊이
+    shadow_color: str = "#000000"
+    letter_spacing: float = 1.0  # 자간 (ASS Spacing)
 
 
 # 화면 비율 프리셋
@@ -146,6 +152,17 @@ class RewriteRequest(BaseModel):
 
 class RenderRequest(BaseModel):
     segment_ids: list[str]
+
+
+class SubtitleRemoveRequest(BaseModel):
+    mode: str = "fast"  # fast (FFmpeg delogo) | quality (OpenCV TELEA)
+
+
+class VisualAnalyzeRequest(BaseModel):
+    frame_interval: int = 5          # 프레임 추출 간격 (초)
+    segment_duration: int = 30       # 구간 길이 (초)
+    max_segments: int = 5
+    product_hint: str = ""           # 제품 힌트 (선택)
 
 
 class JobInfo(BaseModel):

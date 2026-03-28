@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useProjectStore } from '../stores/projectStore'
 import { useApi } from '../hooks/useApi'
 import type { EffectsConfig, Effect } from '../types'
@@ -90,6 +90,7 @@ const DEFAULT_STYLE = {
   font_name: 'GmarketSansTTFBold',
   font_size: 44, color: '#FFFFFF', outline_color: '#000000',
   outline_width: 3, position: 'bottom' as const, bg_opacity: 0.6,
+  bold: true, italic: false, shadow: 1, shadow_color: '#000000', letter_spacing: 1.0,
 }
 
 function secToInput(sec: number): string {
@@ -120,7 +121,44 @@ export default function EffectsStep() {
   const [activeSegId, setActiveSegId] = useState(selectedSegments[0] || '')
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>(() => loadCustomPresets())
   const [presetNameInput, setPresetNameInput] = useState('')
+  const [availableFonts, setAvailableFonts] = useState<string[]>([])
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
+  const [thumbnailLoading, setThumbnailLoading] = useState(false)
+  const fontInputRef = useRef<HTMLInputElement>(null)
   const api = useApi()
+
+  useEffect(() => {
+    api.listFonts().then((data: any) => {
+      if (data?.fonts) setAvailableFonts(data.fonts)
+    }).catch(() => {})
+  }, [])
+
+  async function uploadFont(file: File) {
+    if (!jobId) return
+    try {
+      await api.uploadFontForJob(jobId, file)
+      const data = await api.listFonts()
+      if (data?.fonts) setAvailableFonts(data.fonts)
+    } catch (e: any) {
+      setError('폰트 업로드 실패: ' + (e.response?.data?.detail || e.message))
+    }
+  }
+
+  async function generateThumbnail() {
+    if (!jobId) return
+    setThumbnailLoading(true)
+    setThumbnailUrl(null)
+    try {
+      const seg = segments.find(s => s.id === activeSegId)
+      const timeOffset = seg ? (seg.start_sec + seg.end_sec) / 2 : undefined
+      const res = await api.createThumbnail(jobId, activeSegId, timeOffset)
+      setThumbnailUrl(res.url)
+    } catch (e: any) {
+      setError('썸네일 생성 실패: ' + (e.response?.data?.detail || e.message))
+    } finally {
+      setThumbnailLoading(false)
+    }
+  }
 
   const activeSeg = segments.find(s => s.id === activeSegId)
 
@@ -517,18 +555,38 @@ export default function EffectsStep() {
           </div>
         </div>
 
-        {/* 폰트 정보 */}
-        <div style={{
-          background: '#f8f9fa', borderRadius: 10, padding: '10px 14px',
-          marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <span style={{ fontSize: 20 }}>🔤</span>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#191f28' }}>
-              {config.subtitle_style.font_name || 'GmarketSansTTFBold'}
-            </div>
-            <div style={{ fontSize: 11, color: '#8b95a1' }}>지마켓산스 볼드 · SIL Open Font License</div>
+        {/* 폰트 선택 + 업로드 */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968' }}>폰트</label>
+            <button
+              onClick={() => fontInputRef.current?.click()}
+              style={{
+                background: '#f0f4ff', border: '1px solid #c7d7fa',
+                borderRadius: 6, padding: '3px 10px',
+                fontSize: 11, fontWeight: 600, color: '#3182f6', cursor: 'pointer',
+              }}
+            >
+              + TTF/OTF 업로드
+            </button>
+            <input
+              ref={fontInputRef}
+              type="file"
+              accept=".ttf,.otf"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadFont(f) }}
+            />
           </div>
+          <select
+            value={config.subtitle_style.font_name || 'GmarketSansTTFBold'}
+            onChange={e => updateConfig({ subtitle_style: { ...config.subtitle_style, font_name: e.target.value } })}
+            style={{ width: '100%', border: '1.5px solid #e5e8eb', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}
+          >
+            <option value="GmarketSansTTFBold">지마켓산스 볼드 (기본)</option>
+            {availableFonts.filter(f => f !== 'GmarketSansTTFBold').map(f => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
@@ -580,6 +638,62 @@ export default function EffectsStep() {
           </div>
         </div>
 
+        {/* 고급 스타일 */}
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, alignItems: 'end' }}>
+          {/* Bold */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 6 }}>굵기</label>
+            <button
+              onClick={() => updateConfig({ subtitle_style: { ...config.subtitle_style, bold: !(config.subtitle_style.bold ?? true) } })}
+              style={{
+                width: '100%', padding: '8px 0', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                border: (config.subtitle_style.bold ?? true) ? '2px solid #3182f6' : '1.5px solid #e5e8eb',
+                background: (config.subtitle_style.bold ?? true) ? '#ebf3ff' : '#fff',
+                color: (config.subtitle_style.bold ?? true) ? '#3182f6' : '#8b95a1',
+                cursor: 'pointer',
+              }}
+            >Bold</button>
+          </div>
+          {/* Italic */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 6 }}>기울기</label>
+            <button
+              onClick={() => updateConfig({ subtitle_style: { ...config.subtitle_style, italic: !(config.subtitle_style.italic ?? false) } })}
+              style={{
+                width: '100%', padding: '8px 0', borderRadius: 8, fontSize: 13, fontStyle: 'italic',
+                border: (config.subtitle_style.italic ?? false) ? '2px solid #6366f1' : '1.5px solid #e5e8eb',
+                background: (config.subtitle_style.italic ?? false) ? '#f0f0ff' : '#fff',
+                color: (config.subtitle_style.italic ?? false) ? '#6366f1' : '#8b95a1',
+                cursor: 'pointer',
+              }}
+            >Italic</button>
+          </div>
+          {/* Shadow */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 6 }}>
+              그림자 ({config.subtitle_style.shadow ?? 1})
+            </label>
+            <input
+              type="range" min="0" max="4" step="1"
+              value={config.subtitle_style.shadow ?? 1}
+              onChange={e => updateConfig({ subtitle_style: { ...config.subtitle_style, shadow: +e.target.value } })}
+              style={{ width: '100%', marginTop: 6 }}
+            />
+          </div>
+          {/* Letter spacing */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#4e5968', display: 'block', marginBottom: 6 }}>
+              자간 ({(config.subtitle_style.letter_spacing ?? 1).toFixed(1)})
+            </label>
+            <input
+              type="range" min="0" max="10" step="0.5"
+              value={config.subtitle_style.letter_spacing ?? 1}
+              onChange={e => updateConfig({ subtitle_style: { ...config.subtitle_style, letter_spacing: +e.target.value } })}
+              style={{ width: '100%', marginTop: 6 }}
+            />
+          </div>
+        </div>
+
         {/* 자막 미리보기 */}
         <div style={{
           marginTop: 16, background: '#1a1a2e', borderRadius: 12,
@@ -591,15 +705,16 @@ export default function EffectsStep() {
         }}>
           <div style={{
             fontSize: Math.min(config.subtitle_style.font_size * 0.5, 28),
-            fontWeight: 800,
+            fontWeight: (config.subtitle_style.bold ?? true) ? 800 : 400,
+            fontStyle: (config.subtitle_style.italic ?? false) ? 'italic' : 'normal',
             color: config.subtitle_style.color,
             textShadow: `0 0 ${config.subtitle_style.outline_width * 2}px ${config.subtitle_style.outline_color}`,
-            letterSpacing: 1,
+            letterSpacing: `${config.subtitle_style.letter_spacing ?? 1}px`,
           }}>
             자막 미리보기 텍스트
           </div>
           <div style={{ fontSize: 10, color: '#666', marginTop: 8 }}>
-            지마켓산스 볼드 · {config.subtitle_style.font_size}px
+            {config.subtitle_style.font_name || 'GmarketSansTTFBold'} · {config.subtitle_style.font_size}px
           </div>
         </div>
       </div>
@@ -771,6 +886,48 @@ export default function EffectsStep() {
             autoPlay
             style={{ width: '100%', maxHeight: 400, borderRadius: 10, background: '#000', display: 'block' }}
           />
+        )}
+      </div>
+
+      {/* 썸네일 생성 */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 20, border: '1px solid #e5e8eb', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: thumbnailUrl ? 14 : 0 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#191f28' }}>🖼 썸네일 자동 생성</div>
+            <div style={{ fontSize: 11, color: '#8b95a1', marginTop: 2 }}>구간 중간 프레임에서 1080p 썸네일 추출</div>
+          </div>
+          <button
+            onClick={generateThumbnail}
+            disabled={thumbnailLoading}
+            style={{
+              background: thumbnailLoading ? '#c9d0d7' : '#f59e0b',
+              color: '#fff', border: 'none', borderRadius: 8,
+              padding: '8px 16px', fontSize: 13, fontWeight: 700,
+              cursor: thumbnailLoading ? 'not-allowed' : 'pointer', flexShrink: 0,
+            }}
+          >
+            {thumbnailLoading ? '생성 중...' : '🖼 썸네일 생성'}
+          </button>
+        </div>
+        {thumbnailUrl && (
+          <div>
+            <img
+              src={thumbnailUrl}
+              alt="썸네일"
+              style={{ width: '100%', maxHeight: 300, objectFit: 'contain', borderRadius: 10, background: '#000' }}
+            />
+            <a
+              href={thumbnailUrl}
+              download
+              style={{
+                display: 'block', textAlign: 'center', marginTop: 10,
+                background: '#f59e0b', color: '#fff', borderRadius: 8,
+                padding: '8px', fontSize: 13, fontWeight: 700, textDecoration: 'none',
+              }}
+            >
+              ⬇ 썸네일 다운로드
+            </a>
+          </div>
         )}
       </div>
 

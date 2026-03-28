@@ -31,7 +31,13 @@ export default function InputStep() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [prevJobs, setPrevJobs] = useState<PrevJob[]>([])
   const [loadingJobs, setLoadingJobs] = useState(true)
-  const { job, loading, setJobId, setJob, setStep, setSegments, setSelectedSegments, setSubtitles, setLoading, setError } = useProjectStore()
+  const {
+    job, loading,
+    setJobId, setJob, setStep, setSegments, setSelectedSegments, setSubtitles,
+    setLoading, setError,
+    productMode, productHint, removeHardcodedSubs,
+    setProductMode, setProductHint, setRemoveHardcodedSubs,
+  } = useProjectStore()
   const api = useApi()
 
   useEffect(() => {
@@ -276,6 +282,75 @@ export default function InputStep() {
             </button>
           </>
         )}
+
+        {/* 제품 쇼츠 모드 */}
+        <div style={{
+          marginTop: 20,
+          background: productMode ? '#fdf4ff' : '#f8f9fa',
+          borderRadius: 12, padding: 16,
+          border: `1px solid ${productMode ? '#d8b4fe' : '#e5e8eb'}`,
+          transition: 'all 0.2s',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: productMode ? 14 : 0 }}>
+            <button
+              onClick={() => setProductMode(!productMode)}
+              style={{
+                width: 44, height: 24, borderRadius: 12, border: 'none',
+                background: productMode ? '#9333ea' : '#d1d5db',
+                position: 'relative', cursor: 'pointer', flexShrink: 0,
+                transition: 'background 0.2s',
+              }}
+            >
+              <div style={{
+                position: 'absolute', top: 3, width: 18, height: 18,
+                borderRadius: '50%', background: '#fff',
+                left: productMode ? 23 : 3,
+                transition: 'left 0.2s',
+              }} />
+            </button>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: productMode ? '#7c3aed' : '#4e5968' }}>
+                🛍️ 제품 쇼츠 모드
+              </div>
+              <div style={{ fontSize: 11, color: '#8b95a1' }}>
+                음성 없는 제품 영상 → GPT-4o 비전 분석으로 쇼츠 생성
+              </div>
+            </div>
+          </div>
+
+          {productMode && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed', display: 'block', marginBottom: 4 }}>
+                  제품 힌트 (선택)
+                </label>
+                <input
+                  type="text"
+                  value={productHint}
+                  onChange={e => setProductHint(e.target.value)}
+                  placeholder="예: 스마트폰 카메라 기능 소개, 무선 청소기 광고..."
+                  style={{
+                    width: '100%', border: '1px solid #d8b4fe', borderRadius: 8,
+                    padding: '8px 12px', fontSize: 13, outline: 'none',
+                    boxSizing: 'border-box', background: '#fff',
+                  }}
+                />
+              </div>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                fontSize: 12, fontWeight: 600, color: '#7c3aed', cursor: 'pointer',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={removeHardcodedSubs}
+                  onChange={e => setRemoveHardcodedSubs(e.target.checked)}
+                  style={{ width: 16, height: 16 }}
+                />
+                영상에 구워진 자막 제거 (EasyOCR + inpainting, 시간 소요)
+              </label>
+            </div>
+          )}
+        </div>
 
         <div style={{ marginTop: 16 }}>
           <ProgressBar />
